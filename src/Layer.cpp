@@ -2,7 +2,6 @@
 #include "Application.h"
 
 #include <algorithm>
-#include <imgui.h>
 
 std::shared_ptr<Layer> Layer::create()
 {

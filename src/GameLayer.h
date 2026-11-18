@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Batcher.h"
-#include "Camera.h"
 #include "ColorAction.h"
 #include "ColorChannel.h"
 #include "CopyColorAction.h"
@@ -20,17 +19,14 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include <chrono>
+#include <raylib.h>
+
+extern Camera2D camera;
 
 class GameLayer : public Layer
 {
   private:
-	Camera camera;
-
-	float frameTimer = 0.f;
-
 	float lastObjXPos = 570.f;
-	float avg = 0;
 
 	float musicOffset = 0;
 
@@ -39,12 +35,9 @@ class GameLayer : public Layer
 
 	bool move = true;
 
-	int frame_count = 0;
 	int levelID = 1;
 
 	int bgID = 1;
-
-	int framerate = 0;
 
 	//std::shared_ptr<RenderTexture> renderTexture;
 
@@ -96,11 +89,6 @@ class GameLayer : public Layer
 
 	std::shared_ptr<Sprite> playerSpriteTemp = nullptr;
 
-	// sf::Text framerate;
-	// sf::Font font;
-
-	Sprite* selected = nullptr;
-
 	int prevSection = 0;
 	int nextSection = 0;
 	int songID = 0;
@@ -122,12 +110,10 @@ class GameLayer : public Layer
 
 	virtual void update() override;
 	virtual void draw() override;
-	virtual void GUI() override;
 	virtual void exit() override;
 
 	void drawForSprite(Sprite* sprite, int index);
 	void drawForObject(GameObject* object, int index);
-	void drawInspector();
 
 	void loadLevel(std::string levelId);
 	void loadLevelFromLevelString(std::string_view levelString);

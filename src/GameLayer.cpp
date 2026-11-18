@@ -9,9 +9,10 @@
 
 #include <algorithm>
 #include <execution>
-#include <cpr/cpr.h>
 #include <deque>
-#include <imgui.h>
+#include <fstream>
+#include <cmath>
+#include <format>
 
 GameLayer* GameLayer::instance;
 
@@ -40,11 +41,7 @@ bool GameLayer::init(int levelID)
 	if (!initializeMembers())
 		return false;
 
-	auto before = std::chrono::system_clock::now();
-
 	loadLevel(std::to_string(levelID));
-
-	std::cout << std::chrono::system_clock::now() - before << "\n";
 
 	audioEngine = AudioEngine::create();
 
@@ -57,7 +54,7 @@ bool GameLayer::init(int levelID)
 	}
 
 	auto bgpath = PlatformUtils::getMainResource(std::format("game_bg_{:02d}_001-uhd.png", bgID));
-	auto texture = Texture::create(bgpath.string());
+	auto texture = GameTexture::create(bgpath.string());
 
 	backgroundSprite = QuadSprite::create();
 	backgroundSprite->scale({600, 600, 1});
@@ -73,36 +70,32 @@ bool GameLayer::initializeMembers()
 {
 	// renderTexture = RenderTexture::create({1280, 720});
 
-	// camera.renderTexture = renderTexture.get();
-	camera.init();
+	auto resolution = Application::instance->resolution;
+	camera.offset = {resolution.x / 2.0f, resolution.y / 2.0f};
+	camera.target = {0.0f, 0.0f};
+	camera.rotation = 0.0f;
+	camera.zoom = resolution.y / 800.0f;
 
 	instance = this;
 
-	/* font.loadFromFile(PlatformUtils::getCustomResource("arial.ttf").string());
-	framerate.setFont(font);
-	framerate.setCharacterSize(24);
-	framerate.setColor(sf::Color::Green); */
-
-	glClearColor(0.3, 0.3, 0.3, 1);
-
-	gameSheet01_t3 = Batcher::create("Resources\\GJ_GameSheet-uhd.png");
+	gameSheet01_t3 = Batcher::create("Resources/GJ_GameSheet-uhd.png");
 	if (!gameSheet01_t3)
 		return false;
 
-	gameSheet01_t3_blending = Batcher::create("Resources\\GJ_GameSheet-uhd.png", true);
-	gameSheet01_t2 = Batcher::create("Resources\\GJ_GameSheet-uhd.png");
-	gameSheet01_t2_blending = Batcher::create("Resources\\GJ_GameSheet-uhd.png", true);
-	gameSheet01_t1 = Batcher::create("Resources\\GJ_GameSheet-uhd.png");
-	gameSheet01_t1_blending = Batcher::create("Resources\\GJ_GameSheet-uhd.png", true);
-	gameSheet01_b4 = Batcher::create("Resources\\GJ_GameSheet-uhd.png");
-	gameSheet01_b4_blending = Batcher::create("Resources\\GJ_GameSheet-uhd.png", true);
-	gameSheet01_b3 = Batcher::create("Resources\\GJ_GameSheet-uhd.png");
-	gameSheet01_b3_blending = Batcher::create("Resources\\GJ_GameSheet-uhd.png", true);
-	gameSheet01_b2 = Batcher::create("Resources\\GJ_GameSheet-uhd.png");
-	gameSheet01_b2_blending = Batcher::create("Resources\\GJ_GameSheet-uhd.png", true);
-	gameSheet01_b1 = Batcher::create("Resources\\GJ_GameSheet-uhd.png");
-	gameSheet01_b1_blending = Batcher::create("Resources\\GJ_GameSheet-uhd.png", true);
-	gameSheet02 = Batcher::create("Resources\\GJ_GameSheet02-uhd.png");
+	gameSheet01_t3_blending = Batcher::create("Resources/GJ_GameSheet-uhd.png", true);
+	gameSheet01_t2 = Batcher::create("Resources/GJ_GameSheet-uhd.png");
+	gameSheet01_t2_blending = Batcher::create("Resources/GJ_GameSheet-uhd.png", true);
+	gameSheet01_t1 = Batcher::create("Resources/GJ_GameSheet-uhd.png");
+	gameSheet01_t1_blending = Batcher::create("Resources/GJ_GameSheet-uhd.png", true);
+	gameSheet01_b4 = Batcher::create("Resources/GJ_GameSheet-uhd.png");
+	gameSheet01_b4_blending = Batcher::create("Resources/GJ_GameSheet-uhd.png", true);
+	gameSheet01_b3 = Batcher::create("Resources/GJ_GameSheet-uhd.png");
+	gameSheet01_b3_blending = Batcher::create("Resources/GJ_GameSheet-uhd.png", true);
+	gameSheet01_b2 = Batcher::create("Resources/GJ_GameSheet-uhd.png");
+	gameSheet01_b2_blending = Batcher::create("Resources/GJ_GameSheet-uhd.png", true);
+	gameSheet01_b1 = Batcher::create("Resources/GJ_GameSheet-uhd.png");
+	gameSheet01_b1_blending = Batcher::create("Resources/GJ_GameSheet-uhd.png", true);
+	gameSheet02 = Batcher::create("Resources/GJ_GameSheet02-uhd.png");
 	if (!gameSheet02)
 		return false;
 
@@ -121,7 +114,7 @@ bool GameLayer::initWithLevelString(std::string_view levelString)
 		return false;
 
 	auto bgpath = PlatformUtils::getMainResource(std::format("game_bg_{:02d}_001-uhd.png", bgID));
-	auto texture = Texture::create(bgpath.string());
+	auto texture = GameTexture::create(bgpath.string());
 
 	backgroundSprite = QuadSprite::create();
 	backgroundSprite->scale({600, 600, 1});
@@ -135,12 +128,12 @@ bool GameLayer::initWithLevelString(std::string_view levelString)
 
 void GameLayer::update()
 {
-	if (Input::keyMap[GLFW_KEY_ESCAPE])
+	if (Input::keyMap[KEY_ESCAPE])
 	{
 		std::shared_ptr<SelectLevelLayer> layer = SelectLevelLayer::create();
 		Application::instance->pushLayer(layer);
 	}
-	else if (Input::keyMap[GLFW_KEY_F])
+	else if (Input::keyMap[KEY_F])
 		canStart = true;
 
 	if (canStart && audioEngine && !audioEngine->isPlaying)
@@ -153,18 +146,7 @@ void GameLayer::update()
 	if (audioEngine)
 		audioEngine->update();
 
-	frameTimer -= Application::instance->deltaTime;
-
-	if (frameTimer <= 0)
-	{
-		frameTimer = 0.25f;
-		framerate = (int)ImGui::GetIO().Framerate;
-	}
-
 	moveCamera();
-
-	camera.update();
-	camera.updateTransform();
 
 	if (canStart)
 		updateTriggers();
@@ -182,11 +164,9 @@ void GameLayer::update()
 void GameLayer::draw()
 {
 	glm::vec2 winRes = Application::instance->resolution;
-	if (winRes != camera.resolution)
-		camera.resize(winRes);
-
-	camera.startDraw();
-	camera.clear();
+	camera.offset = {winRes.x / 2.0f, winRes.y / 2.0f};
+	BeginMode2D(camera);
+	ClearBackground({77, 77, 77, 255});
 
 	backgroundSprite->draw();
 
@@ -206,77 +186,35 @@ void GameLayer::draw()
 	gameSheet01_t3->draw();
 	gameSheet02->draw();
 
-	camera.endDraw();
-}
-
-void GameLayer::GUI()
-{
-	ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoDocking |
-									ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings |
-									ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav;
-	ImGui::SetNextWindowBgAlpha(0.35f); // Transparent background
-	if (ImGui::Begin("Example: Simple overlay", (bool*)0, window_flags))
-	{
-		ImGui::Text(std::to_string(framerate).c_str());
-	}
-	ImGui::End();
-
-	/* ImGui::Begin("Proprieties");
-
-	ImGui::Text(std::to_string(Common::sectionForPos(camera.cameraPos.x)).c_str());
-	ImGui::DragFloat3("Cam Position", glm::value_ptr(camera.cameraPos));
-	ImGui::DragFloat3("Cam Rotation", glm::value_ptr(camera.cameraEulerAngles));
-	if (ImGui::DragFloat("Size", &camera.size))
-		camera.resize(camera.resolution);
-
-	size_t i = 0;
-	for(auto&obj : objects)
-	{
-		std::string id = "Obj " + std::to_string(i);
-		ImGui::Text(std::to_string(obj->section).c_str());
-		i++;
-	}
-
-	ImGui::End();
-
-	ImGui::Begin("Scene");
-
-	glm::vec2 winRes = {ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y};
-	if (winRes != renderTexture->resolution)
-		renderTexture->resize(winRes);
-
-	ImGui::Image((ImTextureID)renderTexture->getTexture(), ImGui::GetContentRegionAvail(), ImVec2(0, 1), ImVec2(1, 0));
-
-	ImGui::End(); */
+	EndMode2D();
 }
 
 void GameLayer::moveCamera()
 {
 	Application* app = Application::instance;
 
-	float speed = Input::keyMap[GLFW_KEY_LEFT_SHIFT] ? 700.f : 300.f;
+	float speed = Input::keyMap[KEY_LEFT_SHIFT] ? 700.f : 300.f;
 	float step = app->deltaTime * 60.0f;
 	float movementX = canStart && move ? (float)((double)step * xVel * camSpeed) : 0;
 
-	glm::vec3 prev = camera.cameraPos;
+	glm::vec2 prev = {camera.target.x, -camera.target.y};
+	camera.target.x += movementX;
+	camera.target.y += (Input::keyMap[KEY_W] - Input::keyMap[KEY_S]) * app->deltaTime * speed;
 
-	camera.cameraPos +=
-		glm::vec3(movementX, (Input::keyMap[GLFW_KEY_W] - Input::keyMap[GLFW_KEY_S]) * app->deltaTime * -speed, 0);
-
-	if (Input::mouseButtons[GLFW_MOUSE_BUTTON_1])
-		camera.cameraPos.y += Input::mouseDelta.y * 0.5f;
+	if (Input::mouseButtons[MOUSE_BUTTON_LEFT])
+		camera.target.y -= Input::mouseDelta.y * 0.5f;
 
 	if (Input::scrollDelta != 0)
 	{
-		camera.size -= Input::scrollDelta *= 8;
-		camera.resize(camera.resolution);
+		float size = app->resolution.y / (2.0f * std::max(camera.zoom, 0.01f));
+		size -= Input::scrollDelta * 8.0f;
+		camera.zoom = app->resolution.y / (2.0f * std::max(size, 1.0f));
 	}
 
-	deltaMove = camera.cameraPos - prev;
+	deltaMove = glm::vec3(camera.target.x, -camera.target.y, 0) - glm::vec3(prev, 0);
 
-	backgroundSprite->setPosition({camera.cameraPos.x, camera.cameraPos.y - 10, 0});
+	backgroundSprite->setPosition({camera.target.x, -camera.target.y - 10, 0});
 	backgroundSprite->updateTransform();
-	// framerate.setPosition(camera.getCenter() - (camera.getSize() / 2.f));
 }
 
 void GameLayer::processColorActions()
@@ -474,8 +412,8 @@ void GameLayer::exit()
 
 void GameLayer::updateVisibility()
 {
-	auto& winSize = camera.resolution;
-	auto camPos = camera.cameraPos.x + 200.f;
+	auto& winSize = Application::instance->resolution;
+	auto camPos = camera.target.x + 200.f;
 
 	int prevSection = floorf((camPos - (winSize.x / 3)) / 100);
 	int nextSection = ceilf((camPos) / 100);
@@ -548,17 +486,13 @@ void GameLayer::loadLevel(std::string levelId)
 {
 	if (std::stoi(levelId) > 25)
 	{
-		cpr::Session session;
+		auto response = PlatformUtils::httpPost(
+			"http://www.boomlings.com/database/downloadGJLevel22.php",
+			{{"secret", "Wmfd2893gb7"}, {"levelID", levelId}});
+		if (!response)
+			return;
 
-		cpr::Url url = cpr::Url("http://www.boomlings.com/database/downloadGJLevel22.php");
-		cpr::Payload payload = cpr::Payload{{"secret", "Wmfd2893gb7"}, {"levelID", levelId}};
-
-		session.SetUrl(url);
-		session.SetPayload(payload);
-		session.SetUserAgent(cpr::UserAgent(""));
-
-		cpr::Response r = session.Post();
-		std::vector<std::string_view> levelSplit = Common::splitByDelimStringView(r.text, ':');
+		std::vector<std::string_view> levelSplit = Common::splitByDelimStringView(*response, ':');
 
 		std::map<std::string_view, std::string_view> levelResponse;
 
@@ -701,7 +635,6 @@ void GameLayer::setupLevel(std::string_view levelString)
 		else if (levelData[i] == "kA6")
 		{
 			bgID = Common::stoi(levelData[i + 1]);
-			std::cout << "porcodio";
 			if (!bgID)
 				bgID = 1;
 		}
@@ -709,11 +642,7 @@ void GameLayer::setupLevel(std::string_view levelString)
 		{
 			updateSpeed(Common::stoi(levelData[i + 1]));
 		}
-		if (levelData[i] == "kA1")
-		{
-			// std::cout << Common::stoi(levelData[i + 1]);
-		}
-		else if (levelData[i] == "kA13")
+		if (levelData[i] == "kA13")
 		{
 			musicOffset = Common::stof(levelData[i + 1]);
 		}
@@ -837,7 +766,7 @@ void GameLayer::fillColorChannel(std::span<std::string_view> colorString, int id
 
 void GameLayer::updateTriggers()
 {
-	float camPos = camera.cameraPos.x;
+	float camPos = camera.target.x;
 
 	int curSection = Common::sectionForPos(camPos);
 

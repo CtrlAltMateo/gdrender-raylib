@@ -9,6 +9,7 @@
 #include <fstream>
 #include <iomanip>
 #include <map>
+#include <raylib.h>
 
 std::string GameLevel::decompressLvlStr(std::string compressedLvlStr)
 {
@@ -23,10 +24,12 @@ std::string GameLevel::decompressLvlStr(std::string compressedLvlStr)
 
 	unsigned char* a = nullptr;
 	int64_t deflatedLen = Common::inflateMemory(data, decoded.length(), &a);
+	if (deflatedLen < 0 || !a)
+		return "";
 
 	std::string levelString = std::string((const char*)a, deflatedLen);
 
-	free(a);
+	MemFree(a);
 
 	return levelString;
 }

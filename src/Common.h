@@ -7,12 +7,6 @@
 
 namespace Common
 {
-uint32_t parseShader(std::string path, int type);
-int inflateMemoryWithHint(unsigned char* in, int64_t inLength, unsigned char** out, int64_t* outLength,
-						  int64_t outLengthHint);
-
-int64_t inflateMemoryWithHint(unsigned char* in, int64_t inLength, unsigned char** out, int64_t outLengthHint);
-
 int64_t inflateMemory(unsigned char* in, int64_t inLength, unsigned char** out);
 
 std::vector<std::string> splitByDelim(const std::string& str, char delim);

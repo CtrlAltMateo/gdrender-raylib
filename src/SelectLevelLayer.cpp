@@ -1,13 +1,14 @@
 ﻿#include "SelectLevelLayer.h"
 #include "GameLayer.h"
-#include "imgui.h"
 #include "Application.h"
 
-#include <cpr/cpr.h>
 #include "Common.h"
 #include "base64.h"
 #include "PlatformUtils.h"
 #include <fstream>
+#include <algorithm>
+#include <cstring>
+#include <raylib.h>
 
 std::shared_ptr<SelectLevelLayer> SelectLevelLayer::create()
 {
@@ -108,162 +109,165 @@ static std::optional<std::string> getLevelStringFromLocalLevels(std::string_view
 
 void SelectLevelLayer::GUI()
 {
-	//ImGui::SetNextWindowPos(ImVec2(0, 0));
-	//ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+	const Color textColor = {204, 204, 212, 255};
+	const Color panelColor = {18, 19, 24, 245};
+	const Color buttonColor = {42, 43, 53, 255};
+	const Color highlightColor = {78, 100, 89, 255};
+	const Vector2 mousePosition = GetMousePosition();
+	const bool mousePressed = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+	const int screenWidth = GetScreenWidth();
 
-	ImGui::Begin("Select Level");
+	DrawRectangle(0, 0, screenWidth, GetScreenHeight(), panelColor);
+	DrawText("Select Level", 20, 16, 26, textColor);
 
-	ImGui::InputText("Search", searchStr.data(), searchStr.size());
+	Rectangle searchRect = {20, 54, 360, 38};
+	DrawRectangleRec(searchRect, searchFocused ? highlightColor : buttonColor);
+	DrawRectangleLinesEx(searchRect, 1, textColor);
+	DrawText(searchStr.data(), 30, 64, 18, textColor);
 
-	if (ImGui::Button("Load Level"))
+	if (mousePressed)
+		searchFocused = CheckCollisionPointRec(mousePosition, searchRect);
+
+	if (searchFocused)
 	{
-		page = 0;
-		levels.clear();
-		searchLevels(searchStr.data(), page);
-		memcpy(searchStrPersistent.data(), searchStr.data(), searchStr.size());
+		int character = GetCharPressed();
+		size_t length = std::strlen(searchStr.data());
+		while (character > 0)
+		{
+			if (character >= 32 && character < 127 && length + 1 < searchStr.size())
+			{
+				searchStr[length++] = static_cast<char>(character);
+				searchStr[length] = '\0';
+			}
+			character = GetCharPressed();
+		}
+
+		if (IsKeyPressed(KEY_BACKSPACE) && length > 0)
+			searchStr[length - 1] = '\0';
 	}
 
-	ImGui::SameLine();
+	auto button = [&](const char* label, Rectangle bounds) {
+		bool hovered = CheckCollisionPointRec(mousePosition, bounds);
+		DrawRectangleRec(bounds, hovered ? highlightColor : buttonColor);
+		DrawRectangleLinesEx(bounds, 1, textColor);
+		DrawText(label, static_cast<int>(bounds.x + 10), static_cast<int>(bounds.y + 10), 16, textColor);
+		return mousePressed && hovered;
+	};
 
-	if (ImGui::Button("More"))
+	if (button("Load Level", {400, 54, 120, 38}))
+	{
+		page = 0;
+		tableScroll = 0;
+		levels.clear();
+		searchLevels(searchStr.data(), page);
+		searchStrPersistent = searchStr;
+	}
+
+	if (button("More", {530, 54, 80, 38}))
 	{
 		page++;
 		searchLevels(searchStrPersistent.data(), page);
 	}
 
-	ImGui::SameLine();
-
-	/* static bool fullScreen = false;
-	if (ImGui::Button(fullScreen ? "Windowed" : "Fullscreen"))
+	if (button("Show editor levels", {620, 54, 180, 38}))
 	{
-		if (auto app = Application::instance; app)
-		{
-			fullScreen = !fullScreen;
-			sf::ContextSettings settings;
-			settings.antialiasingLevel = 4;
-
-			if (fullScreen)
-				app->window->create(sf::VideoMode(1920, 1080), "GD", sf::Style::Fullscreen, settings);
-			else
-				app->window->create(sf::VideoMode(1280, 720), "GD", sf::Style::Default, settings);
-		}
-	}
-
-	if (audioEngine && audioEngine->isPlaying)
-	{
-		audioEngine->update();
-	} */
-
-	ImGui::SameLine();
-	if (ImGui::Button("Show editor levels"))
-	{
-		if (auto levels = getLevelNamesFromLocalLevels())
+		if (auto localLevels = getLevelNamesFromLocalLevels())
 		{
 			int i = 0;
-			for (const auto& name : levels.value())
+			for (const auto& name : localLevels.value())
 			{
 				GameLevel& level = this->levels.emplace_back();
-				level.levelID = i;
+				level.levelID = i++;
 				level.name = name;
 				level.localLevel = true;
-				i++;
 			}
 		}
 	}
 
-	ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, {10, 10});
-	if (ImGui::BeginTable("table1", 7,
-						  ImGuiTableFlags_RowBg | ImGuiTableFlags_PadOuterX | ImGuiTableFlags_Resizable |
-							  ImGuiTableFlags_Borders | ImGuiTableFlags_NoBordersInBody))
+	const int tableX = 20;
+	const int tableY = 108;
+	const int rowHeight = 32;
+	const int tableHeight = GetScreenHeight() - tableY - 20;
+	const std::array<int, 7> columnWidths = {240, 110, 80, 380, 70, 100, 100};
+	const std::array<const char*, 7> headers = {"Name", "Downloads", "Likes", "Description", "Stars", "ID", "Open"};
+	int x = tableX;
+	DrawRectangle(tableX, tableY, std::min(screenWidth - tableX * 2, 1080), rowHeight, buttonColor);
+	for (size_t column = 0; column < headers.size(); ++column)
 	{
-		ImGui::TableSetupColumn("Name");
-		ImGui::TableSetupColumn("Downloads");
-		ImGui::TableSetupColumn("Likes");
-		ImGui::TableSetupColumn("Description");
-		ImGui::TableSetupColumn("Stars");
-		ImGui::TableSetupColumn("ID");
-		ImGui::TableSetupColumn("Open");
-		ImGui::TableHeadersRow();
+		DrawText(headers[column], x + 8, tableY + 8, 16, textColor);
+		x += columnWidths[column];
+	}
 
-		ImGuiListClipper clipper;
-		clipper.Begin(levels.size());
+	Rectangle tableBounds = {static_cast<float>(tableX), static_cast<float>(tableY + rowHeight),
+							 static_cast<float>(std::min(screenWidth - tableX * 2, 1080)),
+							 static_cast<float>(std::max(tableHeight - rowHeight, 0))};
+	if (CheckCollisionPointRec(mousePosition, tableBounds))
+		tableScroll = std::max(0.0f, tableScroll - GetMouseWheelMove() * rowHeight);
 
-		while (clipper.Step())
+	float maxScroll = std::max(0.0f, levels.size() * rowHeight - tableBounds.height);
+	tableScroll = std::min(tableScroll, maxScroll);
+
+	BeginScissorMode(tableX, tableY + rowHeight, static_cast<int>(tableBounds.width), static_cast<int>(tableBounds.height));
+	for (size_t i = 0; i < levels.size(); ++i)
+	{
+		const GameLevel& level = levels[i];
+		float rowY = tableY + rowHeight + i * rowHeight - tableScroll;
+		if (rowY + rowHeight < tableY + rowHeight || rowY > tableY + tableHeight)
+			continue;
+
+		DrawRectangle(tableX, static_cast<int>(rowY), static_cast<int>(tableBounds.width), rowHeight,
+					  i % 2 == 0 ? Color{29, 30, 37, 255} : Color{23, 24, 30, 255});
+
+		std::array<std::string, 7> values = {
+			level.name,
+			std::to_string(level.downloads),
+			std::to_string(level.likes),
+			level.description,
+			std::to_string(level.stars),
+			std::to_string(level.levelID),
+			""};
+		x = tableX;
+		for (size_t column = 0; column < values.size() - 1; ++column)
 		{
-			for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row)
+			DrawText(values[column].c_str(), x + 8, static_cast<int>(rowY + 8), 15, textColor);
+			x += columnWidths[column];
+		}
+
+		Rectangle openRect = {static_cast<float>(x + 4), rowY + 3, static_cast<float>(columnWidths.back() - 8),
+							  static_cast<float>(rowHeight - 6)};
+		bool hovered = CheckCollisionPointRec(mousePosition, openRect);
+		DrawRectangleRec(openRect, hovered ? highlightColor : buttonColor);
+		DrawText("Open", static_cast<int>(openRect.x + 12), static_cast<int>(openRect.y + 5), 15, textColor);
+
+		if (mousePressed && hovered)
+		{
+			if (level.localLevel)
 			{
-				auto& level = levels[row];
-
-				ImGui::TableNextRow();
-				ImGui::TableNextColumn();
-
-				ImGui::Text(level.name.c_str());
-				ImGui::TableNextColumn();
-
-				ImGui::Text(std::to_string(level.downloads).c_str());
-				ImGui::TableNextColumn();
-
-				ImGui::Text(std::to_string(level.likes).c_str());
-				ImGui::TableNextColumn();
-
-				ImGui::Text("[View description]");
-				if (ImGui::IsItemHovered())
-					ImGui::SetTooltip(level.description.c_str());
-				ImGui::TableNextColumn();
-
-				ImGui::Text(std::to_string(level.stars).c_str());
-				ImGui::TableNextColumn();
-
-				ImGui::Text(std::to_string(level.levelID).c_str());
-				ImGui::TableNextColumn();
-
-				if (ImGui::Button(std::format("Open##{}", level.levelID).c_str()))
+				if (auto lvlstr = getLevelStringFromLocalLevels(level.name))
 				{
-
-					if (level.localLevel)
-					{
-						if (auto lvlstr = getLevelStringFromLocalLevels(level.name))
-						{
-							std::shared_ptr<GameLayer> gameLayer = GameLayer::createWithLevelString(lvlstr.value());
-							Application::instance->pushLayer(gameLayer);
-						}
-					}
-					else
-					{
-						std::shared_ptr<GameLayer> gameLayer = GameLayer::create(level.levelID);
-						Application::instance->pushLayer(gameLayer);
-					}
+					std::shared_ptr<GameLayer> gameLayer = GameLayer::createWithLevelString(lvlstr.value());
+					Application::instance->pushLayer(gameLayer);
 				}
 			}
+			else
+			{
+				std::shared_ptr<GameLayer> gameLayer = GameLayer::create(level.levelID);
+				Application::instance->pushLayer(gameLayer);
+			}
 		}
-
-		clipper.End();
-
-		ImGui::EndTable();
 	}
-	ImGui::PopStyleVar();
-
-	ImGui::End();
+	EndScissorMode();
 }
 
 void SelectLevelLayer::searchLevels(std::string searchQuery, int page)
 {
-	cpr::Session session;
-
-	auto url = cpr::Url("http://www.boomlings.com/database/getGJLevels21.php");
-	auto payload =
-		cpr::Payload{{"secret", "Wmfd2893gb7"}, {"str", searchQuery}, {"type", "0"}, {"page", std::to_string(page)}};
-
-	session.SetUrl(url);
-	session.SetPayload(payload);
-	session.SetUserAgent(cpr::UserAgent(""));
-
-	cpr::Response r = session.Post();
-
-	if (r.status_code == -1)
+	auto response = PlatformUtils::httpPost(
+		"http://www.boomlings.com/database/getGJLevels21.php",
+		{{"secret", "Wmfd2893gb7"}, {"str", searchQuery}, {"type", "0"}, {"page", std::to_string(page)}});
+	if (!response)
 		return;
 
-	auto levelSplit = Common::splitByDelim(Common::splitByDelim(r.text, '#')[0], '|');
+	auto levelSplit = Common::splitByDelim(Common::splitByDelim(*response, '#')[0], '|');
 
 	for (auto& str : levelSplit)
 	{

@@ -2,13 +2,10 @@
 
 #include "RenderTexture.h"
 
-#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
-class Camera
+class GameCamera
 {
-  private:
-	GLuint uboMatrices = 0;
-
   public:
 	float size = 400.f;
 
@@ -23,7 +20,7 @@ class Camera
 
 	glm::vec3 cameraEulerAngles = glm::vec3(-90.f, 0.0f, 0.0f);
 
-	RenderTexture* renderTexture = nullptr;
+	GameRenderTexture* renderTexture = nullptr;
 
 	bool draw = true;
 

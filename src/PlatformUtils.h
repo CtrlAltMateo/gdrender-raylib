@@ -2,6 +2,9 @@
 
 #include <filesystem>
 #include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 namespace PlatformUtils
 {
 
@@ -10,6 +13,8 @@ inline std::filesystem::path resourcesPath = "Resources";
 inline std::filesystem::path customResourcesPath = "CustomResources";
 
 std::optional<std::filesystem::path> getGDAppdata();
+std::optional<std::string> httpPost(const std::string& url,
+									const std::vector<std::pair<std::string, std::string>>& fields);
 
 std::filesystem::path getApplicationPath();
 bool updateResourcesPath();

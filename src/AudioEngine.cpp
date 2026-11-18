@@ -1,5 +1,4 @@
 #include "AudioEngine.h"
-#include "raudio.h"
 
 #include <fstream>
 #include <streambuf>
@@ -12,7 +11,7 @@ AudioEngine::~AudioEngine()
 		PauseMusicStream(music);
 	}
 
-	if (IsMusicReady(music))
+	if (IsMusicValid(music))
 	{
 		UnloadMusicStream(music);
 	}
@@ -47,18 +46,18 @@ bool AudioEngine::loadAudio(const std::filesystem::path& filePath)
 	if (!std::filesystem::exists(filePath))
 		return false;
 
-	if (IsMusicReady(music))
+	if (IsMusicValid(music))
 	{
 		UnloadMusicStream(music);
 	}
 
 	music = LoadMusicStream(filePath.string().c_str()); //TODO: read file manually to fix unicode paths
-	return IsMusicReady(music);
+	return IsMusicValid(music);
 }
 
 void AudioEngine::play()
 {
-	if (!IsMusicStreamPlaying(music) && IsMusicReady(music))
+	if (!IsMusicStreamPlaying(music) && IsMusicValid(music))
 	{
 		PlayMusicStream(music);
 		isPlaying = true;

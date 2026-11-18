@@ -1,6 +1,8 @@
 #pragma once
 
 #include <glm/vec4.hpp>
+#include <memory>
+#include <vector>
 
 #include "HSV.h"
 #include <iostream>

@@ -1,5 +1,3 @@
-#include <imgui.h>
-
 #include "Transformable.h"
 
 void Transformable::updateTransform()

@@ -12,10 +12,6 @@
 class Batcher : public Transformable
 {
   private:
-	GLuint VBO = 0;
-	GLuint IBO = 0;
-	GLuint VAO = 0;
-
 	tsl::ordered_map<int, Sprite*> sprites;
 
 	bool blending = false;
@@ -25,7 +21,7 @@ class Batcher : public Transformable
 	size_t minRange = std::numeric_limits<size_t>::max(), maxRange = 0;
 
   public:
-	std::shared_ptr<Material> material;
+	std::shared_ptr<GameMaterial> material;
 
 	std::vector<Vertex> vertices;
 	std::vector<uint32_t> indices;

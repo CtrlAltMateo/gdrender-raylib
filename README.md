@@ -4,7 +4,7 @@ Trying to render Geometry Dash levels correctly
 # Usage
 Download the latest release from the [releases](https://github.com/maxnut/gdrender/releases/latest) tab. Drag the _Resources_ folder from your Geometry Dash copy into the program's folder
 
-Run gdrenderGL.exe, search for levels and click open. Press F to start the level, w and s or mouse for scrolling up and down and scroll wheel for zoom
+Run gdrender-raylib.exe, search for levels and click open. Press F to start the level, w and s or mouse for scrolling up and down and scroll wheel for zoom
 
 Press ESC to go back to the level select screen
 
@@ -14,17 +14,17 @@ __Levels will probably have some incorrect parts__
 
 [opstic](https://github.com/opstic/gdclone) helped a ton with child sprites and a bunch of other stuff
 
-[axmol](https://github.com/axmolengine/axmol) actions and zlib functions
+[axmol](https://github.com/axmolengine/axmol) actions
 
-[matcool](https://github.com/matcool) converted to cmake and helped with some level stuff
+[matcool](https://github.com/matcool) helped with level stuff
 
-[iAndyHD3](https://github.com/iAndyHD3) ported the audio engine to raudio
+[iAndyHD3](https://github.com/iAndyHD3) ported the audio engine
 
 # Building
 
-Build the project with cmake
+Build with `make` using MinGW-w64. The raylib repository must be next to this repository as `../raylib`.
 
-Drag the GD resources folder and the additional resources in the build folder
+Place the Geometry Dash `Resources` and `CustomResources` folders beside the executable. If the `Resources` path cannot be found, the program asks you to select it.
 
 # Screenshots
 

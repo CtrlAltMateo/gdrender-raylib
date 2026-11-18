@@ -4,6 +4,7 @@
 #include "Level.h"
 
 #include <array>
+#include <memory>
 #include <vector>
 
 class SelectLevelLayer : public Layer
@@ -15,6 +16,8 @@ private:
 	std::array<char, 50> searchStrPersistent{};
 
 	int page = 1;
+	float tableScroll = 0.0f;
+	bool searchFocused = false;
 
 public:
 	static std::shared_ptr<SelectLevelLayer> create();

@@ -2,21 +2,20 @@
 
 #include <iostream>
 #include <glm/vec2.hpp>
-#include <gl/glew.h>
+#include <raylib.h>
+#include <memory>
 
-class RenderTexture
+class GameRenderTexture
 {
   private:
-	GLuint framebuffer = 0;
-	GLuint renderbuffer = 0;
-	GLuint textureID = 0;
+	RenderTexture2D target = {0};
 
   public:
     glm::vec2 resolution = {0, 0};
 
   public:
 
-    static std::shared_ptr<RenderTexture> create(glm::vec2 resolution);
+    static std::shared_ptr<GameRenderTexture> create(glm::vec2 resolution);
     bool init(glm::vec2 resolution);
 
     void resize(glm::vec2 resolution);
@@ -26,8 +25,8 @@ class RenderTexture
 
     void clear();
 
-	GLuint getTexture()
+	Texture2D getTexture() const
 	{
-		return textureID;
+		return target.texture;
 	}
 };

@@ -1,13 +1,13 @@
 #include "Texture.h"
 
-std::unordered_map<std::string, std::shared_ptr<Texture>> Texture::cachedTextures;
+std::unordered_map<std::string, std::shared_ptr<GameTexture>> GameTexture::cachedTextures;
 
-std::shared_ptr<Texture> Texture::create(const std::string& path)
+std::shared_ptr<GameTexture> GameTexture::create(const std::string& path)
 {
 	if (cachedTextures.contains(path))
 		return cachedTextures[path];
 
-	std::shared_ptr<Texture> ptr = std::make_shared<Texture>();
+	std::shared_ptr<GameTexture> ptr = std::make_shared<GameTexture>();
 
 	if (ptr->init(path))
 	{
@@ -18,35 +18,15 @@ std::shared_ptr<Texture> Texture::create(const std::string& path)
 	return nullptr;
 }
 
-bool Texture::init(const std::string& path)
+bool GameTexture::init(const std::string& path)
 {
-	glGenTextures(1, &this->textureID);
-	glBindTexture(GL_TEXTURE_2D, this->textureID);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	int width, height, nrChannels;
-	stbi_set_flip_vertically_on_load(true);
-	unsigned char* data = stbi_load(path.c_str(), &width, &height, &nrChannels, 0);
-	if (data)
-	{
-		int format = nrChannels == 3 ? GL_RGB : GL_RGBA;
-
-		resolution = {width, height};
-
-		glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
-		glGenerateMipmap(GL_TEXTURE_2D);
-	}
-	else
-	{
-		stbi_image_free(data);
+	textureID = LoadTexture(path.c_str());
+	if (!IsTextureValid(textureID))
 		return false;
-	}
 
-	stbi_image_free(data);
+	resolution = {static_cast<float>(textureID.width), static_cast<float>(textureID.height)};
+	SetTextureWrap(textureID, TEXTURE_WRAP_REPEAT);
+	SetTextureFilter(textureID, TEXTURE_FILTER_TRILINEAR);
 
 	return true;
 }

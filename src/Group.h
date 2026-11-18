@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <vector>
 #include <iostream>
+#include <memory>
 #include <glm/vec2.hpp>
 
 class EffectGameObject;

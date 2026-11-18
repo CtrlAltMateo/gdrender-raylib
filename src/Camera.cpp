@@ -1,22 +1,14 @@
 #include "Camera.h"
 
-void Camera::init()
+#include <algorithm>
+
+void GameCamera::init()
 {
-	glGenBuffers(1, &uboMatrices);
-
-	glBindBuffer(GL_UNIFORM_BUFFER, uboMatrices);
-	glBufferData(GL_UNIFORM_BUFFER, 2 * sizeof(glm::mat4) + sizeof(glm::vec3), nullptr, GL_STATIC_DRAW);
-
 	viewMatrix = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-
 	projectionMatrix = glm::ortho(-2.f, 2.f, -2.f, 2.f, -1.f, 1000.f);
-
-	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(projectionMatrix));
-
-	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
-void Camera::updateTransform()
+void GameCamera::updateTransform()
 {
 	glm::vec3 direction;
 	direction.x = cos(glm::radians(cameraEulerAngles.x)) * cos(glm::radians(cameraEulerAngles.y));
@@ -30,53 +22,45 @@ void Camera::updateTransform()
 	viewMatrix = scaleMatrix * viewMatrix;
 }
 
-void Camera::update()
+void GameCamera::update()
 {
 	if (renderTexture && renderTexture->resolution != resolution)
-		resize(renderTexture->resolution);
+		renderTexture->resize(resolution);
 }
 
-void Camera::resize(glm::vec2 resolution)
+void GameCamera::resize(glm::vec2 resolution)
 {
 	this->resolution = resolution;
 
 	glm::vec2 size = {1.f, resolution.y / resolution.x};
 	size *= this->size;
 
-	glBindBuffer(GL_UNIFORM_BUFFER, uboMatrices);
-
 	projectionMatrix = glm::ortho(-size.x, size.x, -size.y, size.y, 0.1f, 1000.f);
-
-	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(projectionMatrix));
-
-	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
-void Camera::startDraw()
+void GameCamera::startDraw()
 {
-	glBindBufferRange(GL_UNIFORM_BUFFER, 0, uboMatrices, 0, 2 * sizeof(glm::mat4) + sizeof(glm::vec3));
-
-	glBindBuffer(GL_UNIFORM_BUFFER, uboMatrices);
-
-	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(projectionMatrix));
-	glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(viewMatrix));
-	glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4) * 2, sizeof(glm::vec3), glm::value_ptr(cameraPos));
-
-	glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
 	if(renderTexture)
 		renderTexture->bind();
-	else
-		glViewport(0, 0, resolution.x, resolution.y);
+
+	Camera2D camera2D = {};
+	camera2D.offset = {resolution.x / 2.0f, resolution.y / 2.0f};
+	camera2D.target = {cameraPos.x, -cameraPos.y};
+	camera2D.zoom = resolution.y / (2.0f * std::max(size, 1.0f));
+	BeginMode2D(camera2D);
 }
 
-void Camera::endDraw()
+void GameCamera::endDraw()
 {
-	renderTexture->unbind();
+	EndMode2D();
+	if (renderTexture)
+		renderTexture->unbind();
 }
 
-void Camera::clear()
+void GameCamera::clear()
 {
-	if(renderTexture)
+	if (renderTexture)
 		renderTexture->clear();
+	else
+		ClearBackground({77, 77, 77, 255});
 }

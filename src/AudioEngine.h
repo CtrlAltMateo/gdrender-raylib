@@ -1,6 +1,6 @@
 #pragma once
 
-#include "raudio.h"
+#include <raylib.h>
 #include <optional>
 #include <filesystem>
 

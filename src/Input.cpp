@@ -1,7 +1,6 @@
 #include "Input.h"
-#include "Application.h"
 
-#include <GLFW/glfw3.h>
+#include <raylib.h>
 
 glm::vec2 Input::lastMousePosition = {0, 0};
 glm::vec2 Input::mousePosition = {0, 0};
@@ -11,47 +10,29 @@ float Input::scrollDelta;
 std::unordered_map<int, bool> Input::mouseButtons;
 std::unordered_map<int, bool> Input::keyMap;
 
-bool first = true;
-
-void scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
-    Input::scrollDelta = yoffset;
-}
-
-void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
-{
-	Input::keyMap[key] = (action == GLFW_PRESS);
-}
-
-void mouseCallback(GLFWwindow* window, double x, double y)
-{
-	Input::mousePosition.x = x;
-	Input::mousePosition.y = y;
-
-	if (first)
-		Input::lastMousePosition = Input::mousePosition;
-
-	first = false;
-}
-
-void buttonCallback(GLFWwindow* window, int button, int action, int mods)
-{
-	Input::mouseButtons[button] = action;
-}
-
 void Input::init()
 {
-	glfwSetCursorPosCallback(Application::instance->window, mouseCallback);
-	glfwSetMouseButtonCallback(Application::instance->window, buttonCallback);
-	glfwSetKeyCallback(Application::instance->window, keyCallback);
-	glfwSetScrollCallback(Application::instance->window, scrollCallback);
+	Vector2 position = GetMousePosition();
+	lastMousePosition = {position.x, position.y};
+	mousePosition = lastMousePosition;
 }
 
 void Input::update()
 {
-	Input::mouseDelta = {Input::mousePosition.x - Input::lastMousePosition.x,
-						 Input::lastMousePosition.y - Input::mousePosition.y};
-
+	Vector2 position = GetMousePosition();
+	Vector2 delta = GetMouseDelta();
+	mousePosition = {position.x, position.y};
+	mouseDelta = {delta.x, -delta.y};
+	scrollDelta = GetMouseWheelMove();
 	Input::lastMousePosition = Input::mousePosition;
+
+	keyMap[KEY_ESCAPE] = IsKeyDown(KEY_ESCAPE);
+	keyMap[KEY_F] = IsKeyDown(KEY_F);
+	keyMap[KEY_LEFT_SHIFT] = IsKeyDown(KEY_LEFT_SHIFT);
+	keyMap[KEY_W] = IsKeyDown(KEY_W);
+	keyMap[KEY_S] = IsKeyDown(KEY_S);
+
+	mouseButtons[MOUSE_BUTTON_LEFT] = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
 }
 
 void Input::postUpdate()

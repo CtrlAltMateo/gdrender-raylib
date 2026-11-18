@@ -1,17 +1,18 @@
 #pragma once
 
-#include "stb_image.h"
-#include <gl/glew.h>
+#include <raylib.h>
+
 #include <iostream>
+#include <memory>
 #include <unordered_map>
 #include <glm/vec2.hpp>
 
-class Texture
+class GameTexture
 {
   private:
-	GLuint textureID = 0;
+	Texture2D textureID = {0};
 
-	static std::unordered_map<std::string, std::shared_ptr<Texture>> cachedTextures;
+	static std::unordered_map<std::string, std::shared_ptr<GameTexture>> cachedTextures;
 
   public:
 	  uint32_t textureSlot = 0;
@@ -19,11 +20,11 @@ class Texture
 	  glm::vec2 resolution = {0, 0};
 
   public:
-	static std::shared_ptr<Texture> create(const std::string& path);
+	static std::shared_ptr<GameTexture> create(const std::string& path);
 
 	bool init(const std::string& path);
 
-	GLuint getTexture()
+	Texture2D getTexture() const
 	{
 		return this->textureID;
 	}

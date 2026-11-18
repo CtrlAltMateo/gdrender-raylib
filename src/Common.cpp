@@ -1,140 +1,143 @@
 #include "Common.h"
 
-#include "zlib/zlib.h"
+#include <raylib.h>
+
 #include <charconv>
+#include <cstdint>
 #include <fstream>
-#include <gl/glew.h>
+#include <limits>
 #include <sstream>
 #include <sys/types.h>
 
-uint32_t Common::parseShader(std::string path, int type)
+namespace
 {
-	std::ifstream objFile(path);
 
-	if (!objFile.is_open())
-		return 0;
-
-	std::string str;
-	std::ostringstream ss;
-
-	ss << objFile.rdbuf();
-	str = ss.str();
-
-	const char* data = str.c_str();
-
-	GLuint vs = glCreateShader(type);
-	glShaderSource(vs, 1, &data, NULL);
-	glCompileShader(vs);
-
-	return vs;
+uint32_t readLittleEndian(const unsigned char* data)
+{
+	return static_cast<uint32_t>(data[0]) | (static_cast<uint32_t>(data[1]) << 8) |
+		   (static_cast<uint32_t>(data[2]) << 16) | (static_cast<uint32_t>(data[3]) << 24);
 }
 
-#define BUFFER_INC_FACTOR (2)
+uint32_t readBigEndian(const unsigned char* data)
+{
+	return (static_cast<uint32_t>(data[0]) << 24) | (static_cast<uint32_t>(data[1]) << 16) |
+		   (static_cast<uint32_t>(data[2]) << 8) | static_cast<uint32_t>(data[3]);
+}
+
+uint32_t calculateCrc32(const unsigned char* data, int length)
+{
+	uint32_t crc = 0xffffffff;
+	for (int i = 0; i < length; ++i)
+	{
+		crc ^= data[i];
+		for (int bit = 0; bit < 8; ++bit)
+			crc = (crc >> 1) ^ (0xedb88320u & (0u - (crc & 1u)));
+	}
+	return ~crc;
+}
+
+uint32_t calculateAdler32(const unsigned char* data, int length)
+{
+	uint32_t a = 1;
+	uint32_t b = 0;
+	for (int i = 0; i < length; ++i)
+	{
+		a = (a + data[i]) % 65521;
+		b = (b + a) % 65521;
+	}
+	return (b << 16) | a;
+}
+
+}
 
 int64_t Common::inflateMemory(unsigned char* in, int64_t inLength, unsigned char** out)
 {
-	return inflateMemoryWithHint(in, inLength, out, (size_t)256 * (size_t)1024);
-}
+	*out = nullptr;
+	if (!in || inLength < 6 || inLength > std::numeric_limits<int>::max())
+		return -1;
 
-int Common::inflateMemoryWithHint(unsigned char* in, int64_t inLength, unsigned char** out, int64_t* outLength,
-								  int64_t outLengthHint)
-{
-	/* ret value */
-	int err = Z_OK;
+	const unsigned char* compressed = nullptr;
+	size_t compressedLength = 0;
+	const unsigned char* trailer = nullptr;
+	bool gzip = false;
 
-	int64_t bufferSize = outLengthHint;
-	*out = (unsigned char*)malloc(bufferSize);
-
-	z_stream d_stream; /* decompression stream */
-	d_stream.zalloc = (alloc_func)0;
-	d_stream.zfree = (free_func)0;
-	d_stream.opaque = (voidpf)0;
-
-	d_stream.next_in = in;
-	d_stream.avail_in = static_cast<unsigned int>(inLength);
-	d_stream.next_out = *out;
-	d_stream.avail_out = static_cast<unsigned int>(bufferSize);
-
-	/* window size to hold 256k */
-	if ((err = inflateInit2(&d_stream, 15 + 32)) != Z_OK)
-		return err;
-
-	for (;;)
+	if (inLength >= 18 && in[0] == 0x1f && in[1] == 0x8b)
 	{
-		err = inflate(&d_stream, Z_NO_FLUSH);
+		gzip = true;
+		unsigned char flags = in[3];
+		size_t offset = 10;
+		size_t trailerOffset = static_cast<size_t>(inLength) - 8;
+		if ((flags & 0xe0) != 0 || offset > trailerOffset)
+			return -1;
 
-		if (err == Z_STREAM_END)
+		if ((flags & 0x04) != 0)
 		{
-			break;
+			if (offset + 2 > trailerOffset)
+				return -1;
+			size_t extraLength = in[offset] | (static_cast<size_t>(in[offset + 1]) << 8);
+			offset += 2;
+			if (extraLength > trailerOffset - offset)
+				return -1;
+			offset += extraLength;
 		}
 
-		switch (err)
+		for (unsigned char flag : {0x08, 0x10})
 		{
-		case Z_NEED_DICT:
-			err = Z_DATA_ERROR;
-		case Z_DATA_ERROR:
-		case Z_MEM_ERROR:
-			inflateEnd(&d_stream);
-			return err;
+			if ((flags & flag) == 0)
+				continue;
+			while (offset < trailerOffset && in[offset] != 0)
+				++offset;
+			if (offset == trailerOffset)
+				return -1;
+			++offset;
 		}
 
-		// not enough memory ?
-		if (err != Z_STREAM_END)
-		{
-			*out = (unsigned char*)realloc(*out, bufferSize * BUFFER_INC_FACTOR);
+		if ((flags & 0x02) != 0)
+			offset += 2;
+		if (offset > trailerOffset)
+			return -1;
 
-			/* not enough memory, ouch */
-			if (!*out)
-			{
-				std::cout << "axmol: ZipUtils: realloc failed";
-				inflateEnd(&d_stream);
-				return Z_MEM_ERROR;
-			}
+		compressed = in + offset;
+		compressedLength = trailerOffset - offset;
+		trailer = in + trailerOffset;
+	}
+	else
+	{
+		unsigned char cmf = in[0];
+		unsigned char flg = in[1];
+		if ((cmf & 0x0f) != 8 || (cmf >> 4) > 7 || ((cmf << 8) | flg) % 31 != 0 || (flg & 0x20) != 0)
+			return -1;
 
-			d_stream.next_out = *out + bufferSize;
-			d_stream.avail_out = static_cast<unsigned int>(bufferSize);
-			bufferSize *= BUFFER_INC_FACTOR;
-		}
+		compressed = in + 2;
+		compressedLength = static_cast<size_t>(inLength) - 6;
+		trailer = in + inLength - 4;
 	}
 
-	*outLength = bufferSize - d_stream.avail_out;
-	err = inflateEnd(&d_stream);
-	return err;
-}
+	if (compressedLength > std::numeric_limits<int>::max())
+		return -1;
 
-int64_t Common::inflateMemoryWithHint(unsigned char* in, int64_t inLength, unsigned char** out, int64_t outLengthHint)
-{
-	int64_t outLength = 0;
-	int err = inflateMemoryWithHint(in, inLength, out, &outLength, outLengthHint);
-
-	if (err != Z_OK || *out == nullptr)
+	int outputLength = 0;
+	unsigned char* output = DecompressData(compressed, static_cast<int>(compressedLength), &outputLength);
+	if (!output || outputLength < 0)
 	{
-		if (err == Z_MEM_ERROR)
-		{
-			std::cout << "axmol: ZipUtils: Out of memory while decompressing map data!";
-		}
-		else if (err == Z_VERSION_ERROR)
-		{
-			std::cout << "axmol: ZipUtils: Incompatible zlib version!";
-		}
-		else if (err == Z_DATA_ERROR)
-		{
-			std::cout << "axmol: ZipUtils: Incorrect zlib compressed data!";
-		}
-		else
-		{
-			std::cout << "axmol: ZipUtils: Unknown error while decompressing map data! " << err;
-		}
-
-		if (*out)
-		{
-			free(*out);
-			*out = nullptr;
-		}
-		outLength = 0;
+		if (output)
+			MemFree(output);
+		TraceLog(LOG_ERROR, "Failed to decompress level data");
+		return -1;
 	}
 
-	return outLength;
+	uint32_t expectedChecksum = gzip ? readLittleEndian(trailer) : readBigEndian(trailer);
+	uint32_t actualChecksum = gzip ? calculateCrc32(output, outputLength) : calculateAdler32(output, outputLength);
+	uint32_t expectedLength = gzip ? readLittleEndian(trailer + 4) : static_cast<uint32_t>(outputLength);
+	if (actualChecksum != expectedChecksum || (gzip && static_cast<uint32_t>(outputLength) != expectedLength))
+	{
+		MemFree(output);
+		TraceLog(LOG_ERROR, "Compressed level data failed its checksum");
+		return -1;
+	}
+
+	*out = output;
+	return outputLength;
 }
 
 std::vector<std::string> Common::splitByDelim(const std::string& str, char delim)

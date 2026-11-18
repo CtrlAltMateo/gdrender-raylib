@@ -8,6 +8,7 @@
 #include <glm/vec4.hpp>
 #include <glm/matrix.hpp>
 #include <iostream>
+#include <memory>
 
 class GameObject;
 

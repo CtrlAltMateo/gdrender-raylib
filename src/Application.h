@@ -1,8 +1,8 @@
 #pragma once
 
+#include <string>
+#include <memory>
 #include <glm/vec2.hpp>
-#include <GL/glew.h>
-#include <GLFW/glfw3.h>
 
 #include "Layer.h"
 
@@ -17,8 +17,6 @@ class Application
 
   public:
 
-  GLFWwindow* window;
-
   float deltaTime = 0, totalTime = 0;
 
   glm::vec2 resolution;
@@ -27,7 +25,6 @@ class Application
 
   public:
 	void init(glm::vec2 resolution, std::string name);
-  void setStyle();
 
   void startUpdate();
 	void update();
