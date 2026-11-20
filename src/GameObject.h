@@ -11,6 +11,7 @@ private:
 public:
 	bool isTrigger = false;
 	bool enabled = true;
+	bool mirrorPortalActivated = false;
 
 	int zLayer = -1;
 	int zOrder = 1;

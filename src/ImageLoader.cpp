@@ -4,14 +4,15 @@
 
 #include "Common.h"
 #include "boost/any.hpp"
-#include "PlatformUtils.h"
+
+#include <filesystem>
 
 std::unordered_map<std::string, TextureDefinition> ImageLoader::images;
 
 void ImageLoader::ParsePlist(std::string path)
 {
 	std::map<std::string, boost::any> dict;
-	Plist::readPlist(PlatformUtils::getMainResource(path), dict);
+	Plist::readPlist(std::filesystem::path("Resources") / path, dict);
 
 	if (dict.find("frames") != dict.end())
 	{
@@ -40,8 +41,6 @@ void ImageLoader::ParsePlist(std::string path)
 					auto split = Common::splitByDelim(textureRect, ',');
 
 					bool rotated = boost::any_cast<bool>(frameDict.at("textureRotated"));
-
-					//left -> x top -> y width -> z heigth -> w
 
 					texRect.x = std::stoi(split[0]);
 					texRect.y = std::stoi(split[1].erase(split[1].length() - 1));

@@ -1,37 +1,49 @@
 #include "Application.h"
-#include "Input.h"
 
 #include <raylib.h>
 
 Application* Application::instance;
+extern Camera2D camera;
 
-void Application::init(glm::vec2 resolution, std::string name)
+namespace
 {
-	instance = this;
-	this->resolution = resolution;
 
-	SetConfigFlags(FLAG_MSAA_4X_HINT | FLAG_FULLSCREEN_MODE);
-	InitWindow(resolution.x, resolution.y, name.c_str());
-	SetExitKey(KEY_NULL);
+RenderTexture2D mirrorTarget{};
 
-	Input::init();
-
-	lastFrame = GetTime();
-}
-
-void Application::startUpdate()
+bool EnsureMirrorTarget()
 {
-	while (!WindowShouldClose())
+	const int width = GetScreenWidth();
+	const int height = GetScreenHeight();
+	if (IsRenderTextureValid(mirrorTarget) && mirrorTarget.texture.width == width &&
+		mirrorTarget.texture.height == height)
+		return true;
+
+	if (IsRenderTextureValid(mirrorTarget))
+		UnloadRenderTexture(mirrorTarget);
+	mirrorTarget = LoadRenderTexture(width, height);
+	if (!IsRenderTextureValid(mirrorTarget))
 	{
-		update();
-
-		draw();
+		TraceLog(LOG_ERROR, "Could not create mirror render target");
+		return false;
 	}
-
-	exit();
+	return true;
 }
 
-void Application::update()
+void DrawScene(Layer* layer, void (*overlay)())
+{
+	if (layer)
+		layer->drawBackground();
+	BeginMode2D(camera);
+	if (layer)
+		layer->draw();
+	if (overlay)
+		overlay();
+	EndMode2D();
+}
+
+}
+
+void Application::update(float frameDelta)
 {
 	if (IsWindowResized())
 		resolution = {GetScreenWidth(), GetScreenHeight()};
@@ -45,41 +57,48 @@ void Application::update()
 		pendingLayer = nullptr;
 	}
 
-	float currentFrame = GetTime();
-
-	deltaTime = currentFrame - lastFrame;
-	lastFrame = currentFrame;
-
+	deltaTime = frameDelta >= 0.0f ? frameDelta : GetFrameTime();
 	totalTime += deltaTime;
-
-	Input::update();
 
 	if (currentLayer)
 		currentLayer->update();
-
-	Input::postUpdate();
 }
 
-void Application::draw()
+void Application::draw(void (*overlay)())
 {
 	BeginDrawing();
 	ClearBackground(BLACK);
 
-	if (currentLayer)
-		currentLayer->draw();
-
-	if (currentLayer)
-		currentLayer->GUI();
+	if (mirrorX && EnsureMirrorTarget())
+	{
+		BeginTextureMode(mirrorTarget);
+		ClearBackground(BLACK);
+		DrawScene(currentLayer.get(), overlay);
+		EndTextureMode();
+		DrawTexturePro(mirrorTarget.texture,
+					   {static_cast<float>(mirrorTarget.texture.width), 0.0f,
+						-static_cast<float>(mirrorTarget.texture.width),
+						-						-static_cast<float>(mirrorTarget.texture.height)},
+					   {0.0f, 0.0f, static_cast<float>(GetScreenWidth()),
+						static_cast<float>(GetScreenHeight())},
+					   {0.0f, 0.0f}, 0.0f, WHITE);
+	}
+	else
+		DrawScene(currentLayer.get(), overlay);
 
 	EndDrawing();
 }
 
 void Application::exit()
 {
+	if (IsRenderTextureValid(mirrorTarget))
+	{
+		UnloadRenderTexture(mirrorTarget);
+		mirrorTarget = {};
+	}
 	if (currentLayer)
 		popLayer();
-
-	CloseWindow();
+	pendingLayer.reset();
 }
 
 void Application::pushLayer(std::shared_ptr<Layer> layer)

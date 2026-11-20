@@ -20,6 +20,8 @@ void Batcher::draw()
 		return;
 
 	BeginBlendMode(blending ? BLEND_ADDITIVE : BLEND_ALPHA);
+	rlDrawRenderBatchActive();
+	rlDisableBackfaceCulling();
 	rlSetTexture(material->getTextures().front()->getTexture().id);
 	rlBegin(RL_TRIANGLES);
 	for (uint32_t index : indices)
@@ -34,6 +36,8 @@ void Batcher::draw()
 		rlVertex2f(vertex.position.x, vertex.position.y);
 	}
 	rlEnd();
+	rlDrawRenderBatchActive();
+	rlEnableBackfaceCulling();
 	rlSetTexture(0);
 	EndBlendMode();
 

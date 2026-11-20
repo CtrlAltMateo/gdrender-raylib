@@ -1,6 +1,5 @@
 #pragma once
 
-#include <string>
 #include <memory>
 #include <glm/vec2.hpp>
 
@@ -10,8 +9,6 @@ class Application
 {
   private:
 
-  float lastFrame = 0;
-
   std::shared_ptr<Layer> currentLayer;
   std::shared_ptr<Layer> pendingLayer;
 
@@ -20,16 +17,14 @@ class Application
   float deltaTime = 0, totalTime = 0;
 
   glm::vec2 resolution;
+  bool mirrorX = false;
 
   static Application* instance;
 
   public:
-	void init(glm::vec2 resolution, std::string name);
+	void update(float frameDelta = -1.0f);
 
-  void startUpdate();
-	void update();
-
-	void draw();
+	void draw(void (*overlay)() = nullptr);
 
 	void exit();
 

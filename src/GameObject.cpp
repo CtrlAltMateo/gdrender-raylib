@@ -4,8 +4,9 @@
 #include "GameLayer.h"
 #include "ImageLoader.h"
 #include "LongData.h"
-#include "PlatformUtils.h"
 #include "tsl/ordered_map.h"
+
+#include <filesystem>
 #include <fstream>
 
 nlohmann::json GameObject::objJson;
@@ -70,7 +71,7 @@ std::shared_ptr<GameObject> GameObject::createFromString(std::string_view str)
 {
 	if (objJson.empty())
 	{
-		std::ifstream file(PlatformUtils::getCustomResource("object.json"));
+		std::ifstream file(std::filesystem::path("CustomResources") / "object.json");
 		objJson = nlohmann::json::parse(file);
 	}
 
@@ -83,7 +84,6 @@ std::shared_ptr<GameObject> GameObject::createFromString(std::string_view str)
 
 	if (!objJson.contains(properties[1]))
 	{
-		// std::cout << "ID " << properties[1] << " not found!" << std::endl;
 		return nullptr;
 	}
 

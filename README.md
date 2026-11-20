@@ -1,36 +1,11 @@
-# GDrender
-Trying to render Geometry Dash levels correctly
+# GDrender raylib
 
-# Usage
-Download the latest release from the [releases](https://github.com/maxnut/gdrender/releases/latest) tab. Drag the _Resources_ folder from your Geometry Dash copy into the program's folder
+This branch contains the level renderer for embedding in RayDash. The host owns the raylib window and defines the shared `Camera2D camera`.
 
-Run gdrender-raylib.exe, search for levels and click open. Press F to start the level, w and s or mouse for scrolling up and down and scroll wheel for zoom
+The host must load the required sprite atlases with `ImageLoader::ParsePlist`, set `Application::instance` and its resolution, then create a `GameLayer` with decompressed level data using `GameLayer::createWithLevelString`.
 
-Press ESC to go back to the level select screen
+Call `Application::update` once per host frame. The renderer autostarts its level updates and advances the shared camera. `Application::draw` starts and ends the raylib drawing frame, clears it to black, and wraps the level and optional host draw callback in the shared `Camera2D camera`. The host must not wrap that call in `BeginDrawing`, `EndDrawing`, or `BeginMode2D`.
 
-__Levels will probably have some incorrect parts__
+Resource paths are relative to the process working directory. The renderer uses the `Resources` folder and `CustomResources/object.json`.
 
-# Credits
-
-[opstic](https://github.com/opstic/gdclone) helped a ton with child sprites and a bunch of other stuff
-
-[axmol](https://github.com/axmolengine/axmol) actions
-
-[matcool](https://github.com/matcool) helped with level stuff
-
-[iAndyHD3](https://github.com/iAndyHD3) ported the audio engine
-
-# Building
-
-Build with `make` using MinGW-w64. The raylib repository must be next to this repository as `../raylib`.
-
-Place the Geometry Dash `Resources` and `CustomResources` folders beside the executable. If the `Resources` path cannot be found, the program asks you to select it.
-
-# Screenshots
-
-![ss1](/images/ss1.png)
-![ss2](/images/ss2.png)
-![ss3](/images/ss3.png)
-![ss4](/images/ss4.png)
-![ss5](/images/ss5.png)
-![ss6](/images/ss6.png)
+Compile the renderer sources with the host and raylib. This branch has no standalone executable or window lifecycle.

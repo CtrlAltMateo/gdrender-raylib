@@ -1,19 +1,11 @@
 #pragma once
 
-#include <iostream>
-#include <memory>
-
 class Layer
 {
   public:
-	static std::shared_ptr<Layer> create();
-
-	bool init();
-
-	virtual void update();
-
-	virtual void draw();
-	virtual void GUI();
-
-	virtual void exit();
+	virtual ~Layer() = default;
+	virtual void update() {}
+	virtual void drawBackground() {}
+	virtual void draw() {}
+	virtual void exit() {}
 };

@@ -2,28 +2,39 @@
 #include "Application.h"
 #include "Common.h"
 #include "EffectGameObject.h"
-#include "Input.h"
 #include "Level.h"
-#include "PlatformUtils.h"
-#include "SelectLevelLayer.h"
+
+#include <raymath.h>
 
 #include <algorithm>
-#include <execution>
 #include <deque>
-#include <fstream>
 #include <cmath>
-#include <format>
 
 GameLayer* GameLayer::instance;
 
-std::shared_ptr<GameLayer> GameLayer::create(int levelID)
+namespace
 {
-	std::shared_ptr<GameLayer> ptr(new GameLayer);
 
-	if (ptr->init(levelID))
-		return ptr;
+Color ToRaylibColor(const glm::vec4& color)
+{
+	return {
+		static_cast<unsigned char>(std::clamp(color.r, 0.0f, 255.0f)),
+		static_cast<unsigned char>(std::clamp(color.g, 0.0f, 255.0f)),
+		static_cast<unsigned char>(std::clamp(color.b, 0.0f, 255.0f)),
+		static_cast<unsigned char>(std::clamp(color.a, 0.0f, 255.0f))
+	};
+}
 
-	return nullptr;
+bool IsSpeedPortal(std::string_view objectData)
+{
+	const auto properties = Common::splitByDelimStringView(objectData, ',');
+	if (properties.size() < 2 || properties[0] != "1")
+		return false;
+
+	const std::string_view id = properties[1];
+	return id == "200" || id == "201" || id == "202" || id == "203" || id == "1334";
+}
+
 }
 
 std::shared_ptr<GameLayer> GameLayer::createWithLevelString(std::string_view lvlstr)
@@ -36,47 +47,10 @@ std::shared_ptr<GameLayer> GameLayer::createWithLevelString(std::string_view lvl
 	return nullptr;
 }
 
-bool GameLayer::init(int levelID)
-{
-	if (!initializeMembers())
-		return false;
-
-	loadLevel(std::to_string(levelID));
-
-	audioEngine = AudioEngine::create();
-
-	if (auto gdfolder = PlatformUtils::getGDAppdata(); gdfolder && audioEngine)
-	{
-		if (!audioEngine->loadAudio(gdfolder.value() / std::format("{}.mp3", songID)))
-		{
-			audioEngine = std::nullopt;
-		}
-	}
-
-	auto bgpath = PlatformUtils::getMainResource(std::format("game_bg_{:02d}_001-uhd.png", bgID));
-	auto texture = GameTexture::create(bgpath.string());
-
-	backgroundSprite = QuadSprite::create();
-	backgroundSprite->scale({600, 600, 1});
-	backgroundSprite->updateTransform();
-	backgroundSprite->material->addTexture(texture, 0);
-
-	// replayPlayer.load("Macros\\" + std::to_string(levelID) + ".macro");
-
-	return true;
-}
-
 bool GameLayer::initializeMembers()
 {
-	// renderTexture = RenderTexture::create({1280, 720});
-
-	auto resolution = Application::instance->resolution;
-	camera.offset = {resolution.x / 2.0f, resolution.y / 2.0f};
-	camera.target = {0.0f, 0.0f};
-	camera.rotation = 0.0f;
-	camera.zoom = resolution.y / 800.0f;
-
 	instance = this;
+	Application::instance->mirrorX = false;
 
 	gameSheet01_t3 = Batcher::create("Resources/GJ_GameSheet-uhd.png");
 	if (!gameSheet01_t3)
@@ -113,63 +87,30 @@ bool GameLayer::initWithLevelString(std::string_view levelString)
 	if (!initializeMembers())
 		return false;
 
-	auto bgpath = PlatformUtils::getMainResource(std::format("game_bg_{:02d}_001-uhd.png", bgID));
-	auto texture = GameTexture::create(bgpath.string());
-
-	backgroundSprite = QuadSprite::create();
-	backgroundSprite->scale({600, 600, 1});
-	backgroundSprite->updateTransform();
-	backgroundSprite->material->addTexture(texture, 0);
-
 	loadLevelFromLevelString(levelString);
+	if (!scrolling.load(bgID))
+		return false;
+
+	scrolling.setBackgroundColor(ToRaylibColor(colorChannels[1000]->getColor()));
+	scrolling.setGroundColor(ToRaylibColor(colorChannels[1001]->getColor()));
 
 	return true;
 }
 
 void GameLayer::update()
 {
-	if (Input::keyMap[KEY_ESCAPE])
-	{
-		std::shared_ptr<SelectLevelLayer> layer = SelectLevelLayer::create();
-		Application::instance->pushLayer(layer);
-	}
-	else if (Input::keyMap[KEY_F])
-		canStart = true;
-
-	if (canStart && audioEngine && !audioEngine->isPlaying)
-	{
-		audioEngine->setPosition(musicOffset);
-		audioEngine->setVolume(0.15f);
-		audioEngine->play();
-	}
-
-	if (audioEngine)
-		audioEngine->update();
-
-	moveCamera();
-
-	if (canStart)
-		updateTriggers();
+	updateCamera();
+	updateTriggers();
 
 	processColorActions();
 
 	updateLevelObjects();
 
 	updateVisibility();
-
-	/* if (canStart)
-		replayPlayer.update(); */
 }
 
 void GameLayer::draw()
 {
-	glm::vec2 winRes = Application::instance->resolution;
-	camera.offset = {winRes.x / 2.0f, winRes.y / 2.0f};
-	BeginMode2D(camera);
-	ClearBackground({77, 77, 77, 255});
-
-	backgroundSprite->draw();
-
 	gameSheet01_b4_blending->draw();
 	gameSheet01_b4->draw();
 	gameSheet01_b3_blending->draw();
@@ -185,36 +126,24 @@ void GameLayer::draw()
 	gameSheet01_t3_blending->draw();
 	gameSheet01_t3->draw();
 	gameSheet02->draw();
-
-	EndMode2D();
 }
 
-void GameLayer::moveCamera()
+void GameLayer::drawBackground()
+{
+	scrolling.draw(camera);
+}
+
+void GameLayer::updateCamera()
 {
 	Application* app = Application::instance;
 
-	float speed = Input::keyMap[KEY_LEFT_SHIFT] ? 700.f : 300.f;
-	float step = app->deltaTime * 60.0f;
-	float movementX = canStart && move ? (float)((double)step * xVel * camSpeed) : 0;
+	float movementX = app->deltaTime * 311.58f;
 
 	glm::vec2 prev = {camera.target.x, -camera.target.y};
 	camera.target.x += movementX;
-	camera.target.y += (Input::keyMap[KEY_W] - Input::keyMap[KEY_S]) * app->deltaTime * speed;
-
-	if (Input::mouseButtons[MOUSE_BUTTON_LEFT])
-		camera.target.y -= Input::mouseDelta.y * 0.5f;
-
-	if (Input::scrollDelta != 0)
-	{
-		float size = app->resolution.y / (2.0f * std::max(camera.zoom, 0.01f));
-		size -= Input::scrollDelta * 8.0f;
-		camera.zoom = app->resolution.y / (2.0f * std::max(size, 1.0f));
-	}
 
 	deltaMove = glm::vec3(camera.target.x, -camera.target.y, 0) - glm::vec3(prev, 0);
-
-	backgroundSprite->setPosition({camera.target.x, -camera.target.y - 10, 0});
-	backgroundSprite->updateTransform();
+	scrolling.update(movementX, camera.zoom);
 }
 
 void GameLayer::processColorActions()
@@ -313,7 +242,7 @@ void GameLayer::processColorActions()
 
 	for (auto& ac : toRemoveSpawn)
 	{
-		ac->spawn(); // activate spawn here otherwise we add actions while looping
+		ac->spawn();
 		spawnActionsActive.erase(std::find(spawnActionsActive.begin(), spawnActionsActive.end(), ac));
 	}
 
@@ -382,8 +311,10 @@ void GameLayer::updateLevelObjects()
 			}
 			break;
 		case 1000:
-			glm::vec4 col = colorChannels[channel]->getColor();
-			backgroundSprite->setColor(colorChannels[channel]->getColor());
+			scrolling.setBackgroundColor(ToRaylibColor(colorChannels[channel]->getColor()));
+			break;
+		case 1001:
+			scrolling.setGroundColor(ToRaylibColor(colorChannels[channel]->getColor()));
 			break;
 		}
 	}
@@ -407,16 +338,19 @@ void GameLayer::updateLevelObjects()
 
 void GameLayer::exit()
 {
-	instance = nullptr;
+	scrolling.unload();
+	if (instance == this)
+		instance = nullptr;
 }
 
 void GameLayer::updateVisibility()
 {
 	auto& winSize = Application::instance->resolution;
-	auto camPos = camera.target.x + 200.f;
-
-	int prevSection = floorf((camPos - (winSize.x / 3)) / 100);
-	int nextSection = ceilf((camPos) / 100);
+	const float viewLeft = camera.target.x - camera.offset.x / camera.zoom;
+	const float viewRight = camera.target.x + (winSize.x - camera.offset.x) / camera.zoom;
+	const float prefetchDistance = 100.0f;
+	int prevSection = std::max(0, static_cast<int>(floorf((viewLeft - prefetchDistance) / 100.0f)));
+	int nextSection = static_cast<int>(ceilf((viewRight + prefetchDistance) / 100.0f));
 
 	int prevPrevSection = this->prevSection - 1;
 	bool sectionInRange = prevPrevSection >= 0 && prevPrevSection < sectionObjects.size();
@@ -431,18 +365,6 @@ void GameLayer::updateVisibility()
 			obj->removeFromBatcher();
 		}
 	}
-
-	/*if (this->nextSection + 1 >= 0 && sectionObjects.size() != 0 && this->nextSection + 1 < sectionObjects.size())
-	{
-		auto section = &sectionObjects[this->nextSection + 1];
-		for (auto pair : *section)
-		{
-			GameObject* obj = pair.second;
-			obj->removeFromBatcher();
-			for (std::shared_ptr<Sprite> spr : obj->childSprites)
-				spr->removeFromBatcher();
-		}
-	}*/
 
 	for (int i = prevSection; i < nextSection; i++)
 	{
@@ -480,39 +402,6 @@ void GameLayer::updateVisibility()
 
 	this->prevSection = prevSection;
 	this->nextSection = nextSection;
-}
-
-void GameLayer::loadLevel(std::string levelId)
-{
-	if (std::stoi(levelId) > 25)
-	{
-		auto response = PlatformUtils::httpPost(
-			"http://www.boomlings.com/database/downloadGJLevel22.php",
-			{{"secret", "Wmfd2893gb7"}, {"levelID", levelId}});
-		if (!response)
-			return;
-
-		std::vector<std::string_view> levelSplit = Common::splitByDelimStringView(*response, ':');
-
-		std::map<std::string_view, std::string_view> levelResponse;
-
-		for (size_t i = 0; i < levelSplit.size(); i += 2)
-		{
-			if (!levelSplit[i + 1].empty())
-				levelResponse.insert({levelSplit[i], levelSplit[i + 1]});
-		}
-
-		songID = Common::stoi(levelResponse["35"]);
-		auto& lvlstr = levelResponse["4"];
-		loadLevelFromLevelString(GameLevel::decompressLvlStr({lvlstr.begin(), lvlstr.end()}));
-	}
-	else
-	{
-		std::ifstream mainLevelsFile(PlatformUtils::getCustomResource("mainLevels.json"));
-		nlohmann::json mainLevels = nlohmann::json::parse(mainLevelsFile);
-		std::string lvlstr = "H4sIAAAAAAAAA" + mainLevels[levelId].get<std::string>();
-		loadLevelFromLevelString(GameLevel::decompressLvlStr(lvlstr));
-	}
 }
 
 void GameLayer::setupLevel(std::string_view levelString)
@@ -638,14 +527,6 @@ void GameLayer::setupLevel(std::string_view levelString)
 			if (!bgID)
 				bgID = 1;
 		}
-		else if (levelData[i] == "kA4")
-		{
-			updateSpeed(Common::stoi(levelData[i + 1]));
-		}
-		if (levelData[i] == "kA13")
-		{
-			musicOffset = Common::stof(levelData[i + 1]);
-		}
 	}
 
 	colorChannels[1005]->setColor(glm::vec4(0, 0, 255, 255));
@@ -670,6 +551,9 @@ void GameLayer::setupObjects(std::string_view levelString)
 
 	for (const std::string_view& objectDataSpecific : objData)
 	{
+		if (IsSpeedPortal(objectDataSpecific))
+			continue;
+
 		std::shared_ptr<GameObject> obj = GameObject::createFromString(objectDataSpecific);
 		if (obj)
 		{
@@ -793,54 +677,21 @@ void GameLayer::updateTriggers()
 					else
 						tr->triedToActivate = true;
 				}
-				else if (obj->objectID == 200)
+			}
+
+			if (curSection >= 0 && curSection < static_cast<int>(sectionObjects.size()))
+			{
+				for (auto& pair : sectionObjects[curSection])
 				{
-					updateSpeed(1);
-				}
-				else if (obj->objectID == 201)
-				{
-					updateSpeed(0);
-				}
-				else if (obj->objectID == 202)
-				{
-					updateSpeed(2);
-				}
-				else if (obj->objectID == 203)
-				{
-					updateSpeed(3);
-				}
-				else if (obj->objectID == 1334)
-				{
-					updateSpeed(4);
+					GameObject* obj = pair.second;
+					if ((obj->objectID == 45 || obj->objectID == 46) && obj->getPosition().x <= camPos &&
+						!obj->mirrorPortalActivated)
+					{
+						Application::instance->mirrorX = !Application::instance->mirrorX;
+						obj->mirrorPortalActivated = true;
+					}
 				}
 			}
 		}
-	}
-}
-
-void GameLayer::updateSpeed(int speed)
-{
-	switch (speed)
-	{
-	case 0:
-		xVel = 5.77;
-		camSpeed = 0.9;
-		break;
-	case 1:
-		xVel = 5.98;
-		camSpeed = 0.7;
-		break;
-	case 2:
-		xVel = 5.87;
-		camSpeed = 1.1;
-		break;
-	case 3:
-		xVel = 6;
-		camSpeed = 1.3;
-		break;
-	case 4:
-		xVel = 6;
-		camSpeed = 1.6;
-		break;
 	}
 }
