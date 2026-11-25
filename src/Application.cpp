@@ -75,10 +75,13 @@ void Application::draw(void (*overlay)())
 		ClearBackground(BLACK);
 		DrawScene(currentLayer.get(), overlay);
 		EndTextureMode();
+		const Rectangle mirrorSource = {
+			static_cast<float>(mirrorTarget.texture.width), 0.0f,
+			-static_cast<float>(mirrorTarget.texture.width),
+			-static_cast<float>(mirrorTarget.texture.height)
+		};
 		DrawTexturePro(mirrorTarget.texture,
-					   {static_cast<float>(mirrorTarget.texture.width), 0.0f,
-						-static_cast<float>(mirrorTarget.texture.width),
-						-						-static_cast<float>(mirrorTarget.texture.height)},
+					   mirrorSource,
 					   {0.0f, 0.0f, static_cast<float>(GetScreenWidth()),
 						static_cast<float>(GetScreenHeight())},
 					   {0.0f, 0.0f}, 0.0f, WHITE);

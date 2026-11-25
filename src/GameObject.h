@@ -19,7 +19,6 @@ public:
 	int primaryColorChannel = -1;
 	int secondaryColorChannel = -1;
 	uint32_t objectID = 0;
-	uint32_t objectIndex = 0;
 
 	HSV primaryHSV, secondaryHSV;
 
@@ -35,7 +34,7 @@ public:
 
 	static std::shared_ptr<GameObject> createFromString(std::string_view str);
 
-	void setupCustomObjects(nlohmann::json& objectJson, std::shared_ptr<GameObject> parent);
+	void setupCustomObjects(const nlohmann::json& objectJson, std::shared_ptr<GameObject> parent);
 
 	void updateOpacity();
 	void updatePosition(bool send);

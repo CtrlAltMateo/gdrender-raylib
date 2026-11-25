@@ -1,6 +1,6 @@
 #include "Sprite.h"
+#include <algorithm>
 #include <glm/vec2.hpp>
-#include <iostream>
 
 #include "Batcher.h"
 #include "ColorChannel.h"
@@ -136,11 +136,10 @@ bool Sprite::init(std::string texture)
 	if (!ImageLoader::images.count(texture))
 		return false;
 
-	static int uniqueCounter = 0;
-
 	texDef = &ImageLoader::images[texture];
 
-	float z = texDef->textureRect.z / 4.f, w = texDef->textureRect.w / 4.f;
+	float z = texDef->textureRect.z / TextureScale::UhdPixelsPerGameUnit;
+	float w = texDef->textureRect.w / TextureScale::UhdPixelsPerGameUnit;
 
 	half = {z / 2, w / 2};
 
@@ -164,46 +163,47 @@ bool Sprite::init(std::string texture)
 	originalPositions[2] = vertices[2].position;
 	originalPositions[3] = vertices[3].position;
 
+	const float texLeft = texDef->textureRect.x + 0.5f;
+	const float texRight = texDef->textureRect.x + texDef->textureRect.z - 0.5f;
+	const float texTop = texDef->textureRect.y + 0.5f;
+	const float texBottom = texDef->textureRect.y + texDef->textureRect.w - 0.5f;
+
 	if (!texDef->rotated)
 	{
-		vertices[0].texCoord = glm::vec2(texDef->textureRect.x, texDef->textureRect.y + texDef->textureRect.w);
-		vertices[1].texCoord =
-			glm::vec2(texDef->textureRect.x + texDef->textureRect.z, texDef->textureRect.y + texDef->textureRect.w);
-		vertices[2].texCoord = glm::vec2(texDef->textureRect.x + texDef->textureRect.z, texDef->textureRect.y);
-		vertices[3].texCoord = glm::vec2(texDef->textureRect.x, texDef->textureRect.y);
+		vertices[0].texCoord = glm::vec2(texLeft, texBottom);
+		vertices[1].texCoord = glm::vec2(texRight, texBottom);
+		vertices[2].texCoord = glm::vec2(texRight, texTop);
+		vertices[3].texCoord = glm::vec2(texLeft, texTop);
 	}
 	else
 	{
-		vertices[0].texCoord = glm::vec2(texDef->textureRect.x, texDef->textureRect.y);
-		vertices[1].texCoord = glm::vec2(texDef->textureRect.x, texDef->textureRect.y + texDef->textureRect.w);
-		vertices[2].texCoord =
-			glm::vec2(texDef->textureRect.x + texDef->textureRect.z, texDef->textureRect.y + texDef->textureRect.w);
-		vertices[3].texCoord = glm::vec2(texDef->textureRect.x + texDef->textureRect.z, texDef->textureRect.y);
+		vertices[0].texCoord = glm::vec2(texLeft, texTop);
+		vertices[1].texCoord = glm::vec2(texLeft, texBottom);
+		vertices[2].texCoord = glm::vec2(texRight, texBottom);
+		vertices[3].texCoord = glm::vec2(texRight, texTop);
 	}
 
-	this->uniqueID = uniqueCounter;
-
-	uniqueCounter++;
 	return true;
 }
 
 void Sprite::removeFromChannel()
 {
-	if (!channel)
+	if (!channel || !parent || parent->section < 0 ||
+		static_cast<size_t>(parent->section) >= channel->channelSprites.size())
 		return;
 
-	channel->channelSprites[parent->section].erase(uniqueID);
+	auto& sprites = channel->channelSprites[parent->section];
+	std::erase(sprites, this);
 }
 
 void Sprite::addToChannelSection()
 {
-	if (!channel)
+	if (!channel || !parent || parent->section < 0)
 		return;
 
-	if (!channel->channelSprites.contains(parent->section))
-	{
-		std::unordered_map<int, Sprite*> map;
-		channel->channelSprites.insert({parent->section, map});
-	}
-	channel->channelSprites[parent->section].insert({static_cast<int>(uniqueID), this});
+	if (static_cast<size_t>(parent->section) >= channel->channelSprites.size())
+		channel->channelSprites.resize(parent->section + 1);
+	auto& sprites = channel->channelSprites[parent->section];
+	if (std::find(sprites.begin(), sprites.end(), this) == sprites.end())
+		sprites.push_back(this);
 }

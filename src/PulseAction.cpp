@@ -157,9 +157,10 @@ void PulseAction::update(float time)
 
 			for (int i = GameLayer::instance->prevSection; i < GameLayer::instance->nextSection + 1; i++)
 			{
-				for (auto& pair : group->objectsInSections[i])
+				if (i < 0 || static_cast<size_t>(i) >= group->objectsInSections.size())
+					continue;
+				for (GameObject* obj : group->objectsInSections[i])
 				{
-					GameObject* obj = pair.second;
 					if (this->pulsemode == 1)
 						getCopyColors(obj);
 
@@ -177,9 +178,10 @@ void PulseAction::update(float time)
 			std::shared_ptr<Group> group = GameLayer::instance->groups[target];
 			for (int i = GameLayer::instance->prevSection; i < GameLayer::instance->nextSection + 1; i++)
 			{
-				for (auto& pair : group->objectsInSections[i])
+				if (i < 0 || static_cast<size_t>(i) >= group->objectsInSections.size())
+					continue;
+				for (GameObject* obj : group->objectsInSections[i])
 				{
-					GameObject* obj = pair.second;
 					if (this->pulsemode == 1)
 						getCopyColors(obj);
 
@@ -194,9 +196,10 @@ void PulseAction::update(float time)
 			std::shared_ptr<Group> group = GameLayer::instance->groups[target];
 			for (int i = GameLayer::instance->prevSection; i < GameLayer::instance->nextSection + 1; i++)
 			{
-				for (auto& pair : group->objectsInSections[i])
+				if (i < 0 || static_cast<size_t>(i) >= group->objectsInSections.size())
+					continue;
+				for (GameObject* obj : group->objectsInSections[i])
 				{
-					GameObject* obj = pair.second;
 					if (this->pulsemode == 1)
 						getCopyColors(obj);
 

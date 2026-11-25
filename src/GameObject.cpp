@@ -4,18 +4,39 @@
 #include "GameLayer.h"
 #include "ImageLoader.h"
 #include "LongData.h"
-#include "tsl/ordered_map.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 
 nlohmann::json GameObject::objJson;
 
-void GameObject::setupCustomObjects(nlohmann::json& objectJson, std::shared_ptr<GameObject> parent)
+namespace
 {
-	for (nlohmann::json& sprite : objectJson["children"])
+
+ColorChannel* ResolveColorChannel(int channelId, int fallbackId)
+{
+	const auto& channels = GameLayer::instance->colorChannels;
+	if (channelId >= 0 && static_cast<size_t>(channelId) < channels.size() && channels[channelId])
+		return channels[channelId].get();
+	if (fallbackId >= 0 && static_cast<size_t>(fallbackId) < channels.size() && channels[fallbackId])
+		return channels[fallbackId].get();
+	return channels[1010].get();
+}
+
+}
+
+void GameObject::setupCustomObjects(const nlohmann::json& objectJson, std::shared_ptr<GameObject> parent)
+{
+	const auto children = objectJson.find("children");
+	if (children == objectJson.end() || !children->is_array())
+		return;
+
+	for (const nlohmann::json& sprite : *children)
 	{
 		std::shared_ptr<Sprite> spr = Sprite::create(sprite["texture"]);
+		if (!spr)
+			continue;
 
 		spr->parent = this;
 
@@ -25,7 +46,8 @@ void GameObject::setupCustomObjects(nlohmann::json& objectJson, std::shared_ptr<
 		spr->setPosition({sprite["x"].get<float>(), sprite["y"].get<float>(), 0});
 		spr->setRotation({0, 0, sprite["rot"].get<float>()});
 
-		float width = spr->texDef->textureRect.z / 4.f, height = spr->texDef->textureRect.w / 4.f;
+		float width = spr->texDef->textureRect.z / TextureScale::UhdPixelsPerGameUnit;
+		float height = spr->texDef->textureRect.w / TextureScale::UhdPixelsPerGameUnit;
 
 		glm::vec2 _anchor = {width * sprite["anchor_x"].get<float>() * flip.x,
 							 height * sprite["anchor_y"].get<float>() * flip.y};
@@ -41,19 +63,19 @@ void GameObject::setupCustomObjects(nlohmann::json& objectJson, std::shared_ptr<
 													  sprite["color_type"] == "Detail" &&
 													  objectJson["swap_base_detail"])
 			{
-				spr->channel = GameLayer::instance->colorChannels[primaryColorChannel].get();
+				spr->channel = ResolveColorChannel(primaryColorChannel, 1010);
 				spr->hsvModifier = &primaryHSV;
 				spr->channelType = 1;
 			}
 			else if (sprite["color_type"] == "Detail")
 			{
-				spr->channel = GameLayer::instance->colorChannels[secondaryColorChannel].get();
+				spr->channel = ResolveColorChannel(secondaryColorChannel, primaryColorChannel);
 				spr->hsvModifier = &secondaryHSV;
 				spr->channelType = 2;
 			}
 			else
 			{
-				spr->channel = GameLayer::instance->colorChannels[1010].get();
+				spr->channel = ResolveColorChannel(1010, 1010);
 				spr->channelType = 0;
 			}
 		}
@@ -87,7 +109,7 @@ std::shared_ptr<GameObject> GameObject::createFromString(std::string_view str)
 		return nullptr;
 	}
 
-	nlohmann::json objectEntry = objJson[properties[1]];
+	const nlohmann::json& objectEntry = objJson[properties[1]];
 
 	std::string texture = "emptyFrame.png";
 
@@ -126,6 +148,46 @@ std::shared_ptr<GameObject> GameObject::createFromString(std::string_view str)
 	for (size_t i = 0; i < properties.size() - 1; i += 2)
 	{
 		int key = Common::stoi(properties[i]);
+
+		if (!effectPtr)
+		{
+			switch (key)
+			{
+			case 7:
+			case 8:
+			case 9:
+			case 10:
+			case 11:
+			case 17:
+			case 23:
+			case 28:
+			case 29:
+			case 30:
+			case 35:
+			case 45:
+			case 46:
+			case 47:
+			case 48:
+			case 49:
+			case 50:
+			case 52:
+			case 58:
+			case 59:
+			case 62:
+			case 63:
+			case 65:
+			case 66:
+			case 68:
+			case 69:
+			case 70:
+			case 71:
+			case 72:
+			case 73:
+			case 85:
+			case 87:
+				continue;
+			}
+		}
 
 		switch (key)
 		{
@@ -199,20 +261,26 @@ std::shared_ptr<GameObject> GameObject::createFromString(std::string_view str)
 			break;
 		case 43: {
 			std::vector<std::string_view> hsv = Common::splitByDelimStringView(properties[i + 1], 'a');
-			ptr->primaryHSV.h = Common::stof(hsv[0]);
-			ptr->primaryHSV.s = Common::stof(hsv[1]);
-			ptr->primaryHSV.v = Common::stof(hsv[2]);
-			ptr->primaryHSV.sChecked = Common::stoi(hsv[3]);
-			ptr->primaryHSV.vChecked = Common::stoi(hsv[4]);
+			if (hsv.size() >= 5)
+			{
+				ptr->primaryHSV.h = Common::stof(hsv[0]);
+				ptr->primaryHSV.s = Common::stof(hsv[1]);
+				ptr->primaryHSV.v = Common::stof(hsv[2]);
+				ptr->primaryHSV.sChecked = Common::stoi(hsv[3]);
+				ptr->primaryHSV.vChecked = Common::stoi(hsv[4]);
+			}
 		}
 		break;
 		case 44: {
 			std::vector<std::string_view> hsv = Common::splitByDelimStringView(properties[i + 1], 'a');
-			ptr->secondaryHSV.h = Common::stof(hsv[0]);
-			ptr->secondaryHSV.s = Common::stof(hsv[1]);
-			ptr->secondaryHSV.v = Common::stof(hsv[2]);
-			ptr->secondaryHSV.sChecked = Common::stoi(hsv[3]);
-			ptr->secondaryHSV.vChecked = Common::stoi(hsv[4]);
+			if (hsv.size() >= 5)
+			{
+				ptr->secondaryHSV.h = Common::stof(hsv[0]);
+				ptr->secondaryHSV.s = Common::stof(hsv[1]);
+				ptr->secondaryHSV.v = Common::stof(hsv[2]);
+				ptr->secondaryHSV.sChecked = Common::stoi(hsv[3]);
+				ptr->secondaryHSV.vChecked = Common::stoi(hsv[4]);
+			}
 		}
 		break;
 		case 45:
@@ -229,11 +297,14 @@ std::shared_ptr<GameObject> GameObject::createFromString(std::string_view str)
 			break;
 		case 49: {
 			std::vector<std::string_view> hsv = Common::splitByDelimStringView(properties[i + 1], 'a');
-			effectPtr->copyColorHSV.h = Common::stof(hsv[0]);
-			effectPtr->copyColorHSV.s = Common::stof(hsv[1]);
-			effectPtr->copyColorHSV.v = Common::stof(hsv[2]);
-			effectPtr->copyColorHSV.sChecked = Common::stoi(hsv[3]);
-			effectPtr->copyColorHSV.vChecked = Common::stoi(hsv[4]);
+			if (hsv.size() >= 5)
+			{
+				effectPtr->copyColorHSV.h = Common::stof(hsv[0]);
+				effectPtr->copyColorHSV.s = Common::stof(hsv[1]);
+				effectPtr->copyColorHSV.v = Common::stof(hsv[2]);
+				effectPtr->copyColorHSV.sChecked = Common::stoi(hsv[3]);
+				effectPtr->copyColorHSV.vChecked = Common::stoi(hsv[4]);
+			}
 		}
 		break;
 		case 50:
@@ -256,18 +327,18 @@ std::shared_ptr<GameObject> GameObject::createFromString(std::string_view str)
 			for (std::string_view groupStr : groups)
 			{
 				int group = Common::stoi(groupStr);
+				if (group < 0 || static_cast<size_t>(group) >= GameLayer::instance->groups.size())
+					continue;
 
+				if (std::find(ptr->groups.begin(), ptr->groups.end(), group) != ptr->groups.end())
+					continue;
 				ptr->groups.push_back(group);
 
-				GameLayer::instance->groups[group]->objects.push_back(ptr.get());
-
-				if (!GameLayer::instance->groups[group]->objectsInSections.contains(ptr->section))
-				{
-					std::unordered_map<int, GameObject*> map;
-					GameLayer::instance->groups[group]->objectsInSections.insert({ptr->section, map});
-				}
-				GameLayer::instance->groups[group]->objectsInSections[ptr->section].insert(
-					{static_cast<int>(ptr->uniqueID), ptr.get()});
+				Group& targetGroup = *GameLayer::instance->groups[group];
+				targetGroup.objects.push_back(ptr.get());
+				if (static_cast<size_t>(ptr->section) >= targetGroup.objectsInSections.size())
+					targetGroup.objectsInSections.resize(ptr->section + 1);
+				targetGroup.objectsInSections[ptr->section].push_back(ptr.get());
 			}
 			break;
 		}
@@ -326,23 +397,24 @@ std::shared_ptr<GameObject> GameObject::createFromString(std::string_view str)
 
 	if (objectEntry.contains("color_type"))
 	{
-		if (objectEntry["color_type"] == "Base" || objectEntry.contains("swap_base_detail") &&
+		if (objectEntry.contains("color_type") &&
+			(objectEntry["color_type"] == "Base" || objectEntry.contains("swap_base_detail") &&
 													   objectEntry["color_type"] == "Detail" &&
-													   objectEntry["swap_base_detail"])
+													   objectEntry["swap_base_detail"]))
 		{
-			ptr->channel = GameLayer::instance->colorChannels[ptr->primaryColorChannel].get();
+			ptr->channel = ResolveColorChannel(ptr->primaryColorChannel, 1010);
 			ptr->hsvModifier = &ptr->primaryHSV;
 			ptr->channelType = 1;
 		}
 		else if (objectEntry["color_type"] == "Detail")
 		{
-			ptr->channel = GameLayer::instance->colorChannels[ptr->secondaryColorChannel].get();
+			ptr->channel = ResolveColorChannel(ptr->secondaryColorChannel, ptr->primaryColorChannel);
 			ptr->hsvModifier = &ptr->secondaryHSV;
 			ptr->channelType = 2;
 		}
 		else
 		{
-			ptr->channel = GameLayer::instance->colorChannels[1010].get();
+			ptr->channel = ResolveColorChannel(1010, 1010);
 			ptr->channelType = 0;
 		}
 	}
@@ -389,43 +461,38 @@ void GameObject::tryUpdateSection()
 	int section = Common::sectionForPos(getPosition().x);
 	section = section - 1 < 0 ? 0 : section - 1;
 
-	if (section > GameLayer::instance->nextSection || section < GameLayer::instance->prevSection)
+	int oldSection = this->section;
+	if (oldSection == section)
 		return;
 
-	int oldSection = this->section;
+	removeFromChannel();
+	for (const auto& sprite : childSprites)
+		sprite->removeFromChannel();
 
-	if (this->section != section)
+	auto& sections = GameLayer::instance->sectionObjects;
+	if (oldSection >= 0 && static_cast<size_t>(oldSection) < sections.size())
+		std::erase(sections[oldSection], this);
+	if (static_cast<size_t>(section) >= sections.size())
+		sections.resize(section + 1);
+	if (std::find(sections[section].begin(), sections[section].end(), this) == sections[section].end())
+		sections[section].push_back(this);
+	this->section = section;
+
+	for (int groupId : groups)
 	{
-		removeFromChannel();
-		for (auto& spr : childSprites)
-			spr->removeFromChannel();
-
-		auto& thisSectionMap = GameLayer::instance->sectionObjects[this->section];
-
-		thisSectionMap.erase(this->uniqueID);
-
-		int sectionSize = GameLayer::instance->sectionObjects.size();
-		if(section >= sectionSize)
-			GameLayer::instance->sectionObjects.resize(section + 1);
-
-		GameLayer::instance->sectionObjects[section].insert({this->uniqueID, this});
-
-		this->section = section;
-
-		for (int i : groups)
-		{
-			std::shared_ptr<Group> group = GameLayer::instance->groups[i];
-			auto groupMap = &group->objectsInSections[oldSection];
-
-			groupMap->erase(uniqueID);
-
-			group->objectsInSections[section].insert({static_cast<int>(uniqueID), this});
-		}
-
-		addToChannelSection();
-		for (std::shared_ptr<Sprite> spr : childSprites)
-		{
-			spr->addToChannelSection();
-		}
+		if (groupId < 0 || static_cast<size_t>(groupId) >= GameLayer::instance->groups.size())
+			continue;
+		std::shared_ptr<Group> group = GameLayer::instance->groups[groupId];
+		if (oldSection >= 0 && static_cast<size_t>(oldSection) < group->objectsInSections.size())
+			std::erase(group->objectsInSections[oldSection], this);
+		if (static_cast<size_t>(section) >= group->objectsInSections.size())
+			group->objectsInSections.resize(section + 1);
+		auto& groupSection = group->objectsInSections[section];
+		if (std::find(groupSection.begin(), groupSection.end(), this) == groupSection.end())
+			groupSection.push_back(this);
 	}
+
+	addToChannelSection();
+	for (const auto& sprite : childSprites)
+		sprite->addToChannelSection();
 }

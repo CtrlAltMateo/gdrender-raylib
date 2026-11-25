@@ -1,8 +1,6 @@
 #pragma once
 
-#include <unordered_map>
 #include <vector>
-#include <iostream>
 #include <memory>
 #include <glm/vec2.hpp>
 
@@ -13,7 +11,7 @@ class ActionInterval;
 class Group
 {
 public:
-	std::unordered_map<int, std::unordered_map<int, GameObject*>> objectsInSections;
+	std::vector<std::vector<GameObject*>> objectsInSections;
 	std::vector<GameObject*> objects;
 	float groupOpacity = 1.0f;
 

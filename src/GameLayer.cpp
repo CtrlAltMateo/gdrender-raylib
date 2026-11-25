@@ -3,6 +3,7 @@
 #include "Common.h"
 #include "EffectGameObject.h"
 #include "Level.h"
+#include "config.h"
 
 #include <raymath.h>
 
@@ -25,14 +26,18 @@ Color ToRaylibColor(const glm::vec4& color)
 	};
 }
 
-bool IsSpeedPortal(std::string_view objectData)
+size_t LayerIndex(int zLayer)
 {
-	const auto properties = Common::splitByDelimStringView(objectData, ',');
-	if (properties.size() < 2 || properties[0] != "1")
-		return false;
-
-	const std::string_view id = properties[1];
-	return id == "200" || id == "201" || id == "202" || id == "203" || id == "1334";
+	switch (zLayer)
+	{
+	case -3: return 0;
+	case -1: return 1;
+	case 1: return 2;
+	case 3: return 3;
+	case 7: return 5;
+	case 9: return 6;
+	default: return 4;
+	}
 }
 
 }
@@ -52,31 +57,27 @@ bool GameLayer::initializeMembers()
 	instance = this;
 	Application::instance->mirrorX = false;
 
-	gameSheet01_t3 = Batcher::create("Resources/GJ_GameSheet-uhd.png");
-	if (!gameSheet01_t3)
-		return false;
+	for (size_t layer = 0; layer < gameSheet01.size(); ++layer)
+	{
+		for (size_t blend = 0; blend < gameSheet01[layer].size(); ++blend)
+		{
+			const bool additive = blend == 1;
+			gameSheet01[layer][blend] = Batcher::create("Resources/GJ_GameSheet-uhd.png", additive);
+			gameSheet03[layer][blend] = Batcher::create("Resources/GJ_GameSheet03-uhd.png", additive);
+			gameSheet04[layer][blend] = Batcher::create("Resources/GJ_GameSheet04-uhd.png", additive);
+			if (!gameSheet01[layer][blend] || !gameSheet03[layer][blend] || !gameSheet04[layer][blend])
+				return false;
 
-	gameSheet01_t3_blending = Batcher::create("Resources/GJ_GameSheet-uhd.png", true);
-	gameSheet01_t2 = Batcher::create("Resources/GJ_GameSheet-uhd.png");
-	gameSheet01_t2_blending = Batcher::create("Resources/GJ_GameSheet-uhd.png", true);
-	gameSheet01_t1 = Batcher::create("Resources/GJ_GameSheet-uhd.png");
-	gameSheet01_t1_blending = Batcher::create("Resources/GJ_GameSheet-uhd.png", true);
-	gameSheet01_b4 = Batcher::create("Resources/GJ_GameSheet-uhd.png");
-	gameSheet01_b4_blending = Batcher::create("Resources/GJ_GameSheet-uhd.png", true);
-	gameSheet01_b3 = Batcher::create("Resources/GJ_GameSheet-uhd.png");
-	gameSheet01_b3_blending = Batcher::create("Resources/GJ_GameSheet-uhd.png", true);
-	gameSheet01_b2 = Batcher::create("Resources/GJ_GameSheet-uhd.png");
-	gameSheet01_b2_blending = Batcher::create("Resources/GJ_GameSheet-uhd.png", true);
-	gameSheet01_b1 = Batcher::create("Resources/GJ_GameSheet-uhd.png");
-	gameSheet01_b1_blending = Batcher::create("Resources/GJ_GameSheet-uhd.png", true);
+			batchers.push_back(gameSheet01[layer][blend]);
+			batchers.push_back(gameSheet03[layer][blend]);
+			batchers.push_back(gameSheet04[layer][blend]);
+		}
+	}
+
 	gameSheet02 = Batcher::create("Resources/GJ_GameSheet02-uhd.png");
 	if (!gameSheet02)
 		return false;
-
-	batchers = {gameSheet01_b1, gameSheet01_b1_blending, gameSheet01_b2, gameSheet01_b2_blending,
-				gameSheet01_b3, gameSheet01_b3_blending, gameSheet01_b4, gameSheet01_b4_blending,
-				gameSheet01_t3, gameSheet01_t3_blending, gameSheet01_t2, gameSheet01_t2_blending,
-				gameSheet01_t1, gameSheet01_t1_blending, gameSheet02};
+	batchers.push_back(gameSheet02);
 
 	updateLevelObjects();
 	return true;
@@ -111,26 +112,21 @@ void GameLayer::update()
 
 void GameLayer::draw()
 {
-	gameSheet01_b4_blending->draw();
-	gameSheet01_b4->draw();
-	gameSheet01_b3_blending->draw();
-	gameSheet01_b3->draw();
-	gameSheet01_b2_blending->draw();
-	gameSheet01_b2->draw();
-	gameSheet01_b1_blending->draw();
-	gameSheet01_b1->draw();
-	gameSheet01_t1_blending->draw();
-	gameSheet01_t1->draw();
-	gameSheet01_t2_blending->draw();
-	gameSheet01_t2->draw();
-	gameSheet01_t3_blending->draw();
-	gameSheet01_t3->draw();
+	for (size_t layer = 0; layer < gameSheet01.size(); ++layer)
+	{
+		gameSheet03[layer][1]->draw();
+		gameSheet04[layer][1]->draw();
+		gameSheet01[layer][1]->draw();
+		gameSheet03[layer][0]->draw();
+		gameSheet04[layer][0]->draw();
+		gameSheet01[layer][0]->draw();
+	}
 	gameSheet02->draw();
 }
 
 void GameLayer::drawBackground()
 {
-	scrolling.draw(camera);
+	scrolling.draw(camera, groundY, cameraY);
 }
 
 void GameLayer::updateCamera()
@@ -255,9 +251,13 @@ void GameLayer::processColorActions()
 
 void GameLayer::loadLevelFromLevelString(std::string_view levelStringView)
 {
-	for (int i = 0; i < 1013; i++)
+	for (size_t i = 0; i < colorChannels.size(); i++)
 	{
-		colorChannels[i] = ColorChannel::create({255, 255, 255, 255}, i);
+		colorChannels[i] = ColorChannel::create({255, 255, 255, 255}, static_cast<int>(i));
+	}
+
+	for (size_t i = 0; i < groups.size(); i++)
+	{
 		groups[i] = Group::create();
 	}
 
@@ -268,21 +268,16 @@ void GameLayer::loadLevelFromLevelString(std::string_view levelStringView)
 	{
 		std::sort(objects.begin(), objects.end(), [](const auto& x, const auto& y) { return x->zLayer < y->zLayer; });
 
-		for (size_t i = 0; i < Common::sectionForPos(lastObjXPos); i++)
-		{
-			std::unordered_map<int, GameObject*> map;
-			sectionObjects.push_back(map);
-		}
+		sectionObjects.resize(std::max(1, Common::sectionForPos(lastObjXPos)));
 
 		for (std::shared_ptr<GameObject> object : objects)
 		{
-			sectionObjects[object->section].insert({object->uniqueID, object.get()});
-		}
-
-		for (auto& section : sectionObjects)
-		{
-			if (section.size() > maxSectionSize)
-				maxSectionSize = section.size();
+			if (object->section >= 0)
+			{
+				if (static_cast<size_t>(object->section) >= sectionObjects.size())
+					sectionObjects.resize(object->section + 1);
+				sectionObjects[object->section].push_back(object.get());
+			}
 		}
 	}
 
@@ -302,9 +297,10 @@ void GameLayer::updateLevelObjects()
 		default:
 			for (int i = prevSection; i < nextSection + 1; i++)
 			{
-				for (auto& pair : colorChannels[channel]->channelSprites[i])
+				if (i < 0 || static_cast<size_t>(i) >= colorChannels[channel]->channelSprites.size())
+					continue;
+				for (Sprite* sprite : colorChannels[channel]->channelSprites[i])
 				{
-					Sprite* sprite = pair.second;
 					sprite->setColorWithoutSend(colorChannels[channel]->getColor());
 					sprite->setOpacity(colorChannels[channel]->getColor().a);
 				}
@@ -325,12 +321,10 @@ void GameLayer::updateLevelObjects()
 		groups[group]->moveDelta = {0, 0};
 		for (int i = prevSection; i < nextSection + 1; i++)
 		{
-			auto map = &groups[group]->objectsInSections[i];
-			for (auto& pair : *map)
-			{
-				GameObject* obj = pair.second;
+			if (i < 0 || static_cast<size_t>(i) >= groups[group]->objectsInSections.size())
+				continue;
+			for (GameObject* obj : groups[group]->objectsInSections[i])
 				obj->updatePosition(true);
-			}
 		}
 	}
 	dirtyGroups.clear();
@@ -346,20 +340,21 @@ void GameLayer::exit()
 void GameLayer::updateVisibility()
 {
 	auto& winSize = Application::instance->resolution;
-	const float viewLeft = camera.target.x - camera.offset.x / camera.zoom;
-	const float viewRight = camera.target.x + (winSize.x - camera.offset.x) / camera.zoom;
-	const float prefetchDistance = 100.0f;
+	const float zoom = std::max(camera.zoom, 0.01f);
+	const float viewLeft = camera.target.x - camera.offset.x / zoom;
+	const float viewRight = camera.target.x + (winSize.x - camera.offset.x) / zoom;
+	const float prefetchDistance = 400.0f * screenScale / zoom;
 	int prevSection = std::max(0, static_cast<int>(floorf((viewLeft - prefetchDistance) / 100.0f)));
 	int nextSection = static_cast<int>(ceilf((viewRight + prefetchDistance) / 100.0f));
 
 	int prevPrevSection = this->prevSection - 1;
-	bool sectionInRange = prevPrevSection >= 0 && prevPrevSection < sectionObjects.size();
+	bool sectionInRange = prevPrevSection >= 0 &&
+		static_cast<size_t>(prevPrevSection) < sectionObjects.size();
 
 	if (sectionInRange && !sectionObjects.empty())
 	{
-		for (auto& pair : sectionObjects[prevPrevSection])
+		for (GameObject* obj : sectionObjects[prevPrevSection])
 		{
-			GameObject* obj = pair.second;
 			for (auto& spr : obj->childSprites)
 				spr->removeFromBatcher();
 			obj->removeFromBatcher();
@@ -370,12 +365,10 @@ void GameLayer::updateVisibility()
 	{
 		if (i >= 0)
 		{
-			if (i < sectionObjects.size())
+			if (static_cast<size_t>(i) < sectionObjects.size())
 			{
-				auto section = &sectionObjects[i];
-				for (auto& pair : *section)
+				for (GameObject* obj : sectionObjects[i])
 				{
-					GameObject* obj = pair.second;
 					if (!obj || (obj->currentBatcher != nullptr) || !obj->enabled)
 						continue;
 
@@ -501,11 +494,14 @@ void GameLayer::setupLevel(std::string_view levelString)
 					break;
 					case 10:
 						std::vector<std::string_view> hsv = Common::splitByDelimStringView(innerData[j + 1], 'a');
-						hsvModifier.h = Common::stof(hsv[0]);
-						hsvModifier.s = Common::stof(hsv[1]);
-						hsvModifier.v = Common::stof(hsv[2]);
-						hsvModifier.sChecked = Common::stoi(hsv[3]);
-						hsvModifier.vChecked = Common::stoi(hsv[4]);
+						if (hsv.size() >= 5)
+						{
+							hsvModifier.h = Common::stof(hsv[0]);
+							hsvModifier.s = Common::stof(hsv[1]);
+							hsvModifier.v = Common::stof(hsv[2]);
+							hsvModifier.sChecked = Common::stoi(hsv[3]);
+							hsvModifier.vChecked = Common::stoi(hsv[4]);
+						}
 						break;
 					}
 				}
@@ -542,24 +538,27 @@ void GameLayer::setupObjects(std::string_view levelString)
 {
 	std::vector<std::string_view> objData = Common::splitByDelimStringView(levelString, ';');
 
-	objData.erase(objData.begin());
+	if (!objData.empty())
+		objData.erase(objData.begin());
 
-	if (const std::string_view& last = objData.back(); last.front() != '1' || last[1] != ',')
-		objData.pop_back();
+	if (!objData.empty())
+	{
+		const std::string_view& last = objData.back();
+		if (last.size() < 2 || last[0] != '1' || last[1] != ',')
+			objData.pop_back();
+	}
+
+	if (objData.empty())
+		return;
 
 	objects.reserve(objData.size());
 
 	for (const std::string_view& objectDataSpecific : objData)
 	{
-		if (IsSpeedPortal(objectDataSpecific))
-			continue;
-
 		std::shared_ptr<GameObject> obj = GameObject::createFromString(objectDataSpecific);
 		if (obj)
 		{
 			objects.push_back(obj);
-			obj->objectIndex = GameLayer::instance->objects.size() - 1;
-
 			if (obj->getPosition().x > lastObjXPos)
 				lastObjXPos = obj->getPosition().x;
 		}
@@ -573,48 +572,37 @@ void GameLayer::layerObject(Sprite* sprite)
 
 	Batcher* targetBatcher = nullptr;
 	bool blending = sprite->channel && sprite->channel->blending;
+	const size_t layer = LayerIndex(sprite->parent->zLayer);
 
 	if (sprite->channel && sprite->channel->id == 1010)
 	{
 		bool hasSecondChannel = sprite->parent->secondaryColorChannel != -1;
 		int channel = hasSecondChannel ? sprite->parent->secondaryColorChannel : sprite->parent->primaryColorChannel;
-		blending = colorChannels[channel]->blending;
+		if (channel >= 0 && static_cast<size_t>(channel) < colorChannels.size() && colorChannels[channel])
+			blending = colorChannels[channel]->blending;
 	}
 
 	if (sprite->texDef->sheet == "GJ_GameSheet-uhd.png")
 	{
-		switch (sprite->parent->zLayer)
-		{
-		case -3:
-			targetBatcher = blending ? gameSheet01_b4_blending.get() : gameSheet01_b4.get();
-			break;
-		case -1:
-			targetBatcher = blending ? gameSheet01_b3_blending.get() : gameSheet01_b3.get();
-			break;
-		case 1:
-			targetBatcher = blending ? gameSheet01_b2_blending.get() : gameSheet01_b2.get();
-			break;
-		case 3:
-			targetBatcher = blending ? gameSheet01_b1_blending.get() : gameSheet01_b1.get();
-			break;
-		default:
-		case 5:
-			targetBatcher = blending ? gameSheet01_t1_blending.get() : gameSheet01_t1.get();
-			break;
-		case 7:
-			targetBatcher = blending ? gameSheet01_t2_blending.get() : gameSheet01_t2.get();
-			break;
-		case 9:
-			targetBatcher = blending ? gameSheet01_t3_blending.get() : gameSheet01_t3.get();
-			break;
-		}
+		targetBatcher = gameSheet01[layer][blending].get();
 	}
 	else if (sprite->texDef->sheet == "GJ_GameSheet02-uhd.png")
 	{
 		targetBatcher = gameSheet02.get();
 	}
+	else if (sprite->texDef->sheet == "GJ_GameSheet03-uhd.png" ||
+			 sprite->texDef->sheet == "GJ_GameSheet04-uhd.png")
+	{
+		auto& sheetBatchers = sprite->texDef->sheet == "GJ_GameSheet03-uhd.png"
+			? gameSheet03
+			: gameSheet04;
+		targetBatcher = sheetBatchers[layer][blending].get();
+	}
 
 	glm::vec4 col = {255, 255, 255, 255};
+
+	if (!targetBatcher)
+		return;
 
 	targetBatcher->addSprite(sprite);
 
@@ -654,15 +642,14 @@ void GameLayer::updateTriggers()
 
 	int curSection = Common::sectionForPos(camPos);
 
-	for (int i = prevSection; i < curSection; i++)
+	for (int i = prevSection; i <= curSection; i++)
 	{
-		if (i < sectionObjects.size() && i >= 0)
+		if (i >= 0 && static_cast<size_t>(i) < sectionObjects.size())
 		{
 			auto& section = sectionObjects[i];
 
-			for (auto& pair : section)
+			for (GameObject* obj : section)
 			{
-				GameObject* obj = pair.second;
 				if (obj->getPosition().x > camPos)
 					continue;
 
@@ -679,18 +666,20 @@ void GameLayer::updateTriggers()
 				}
 			}
 
-			if (curSection >= 0 && curSection < static_cast<int>(sectionObjects.size()))
+		}
+	}
+
+	const int firstMirrorSection = std::max(0, prevSection);
+	const int lastMirrorSection = std::min(curSection, static_cast<int>(sectionObjects.size()) - 1);
+	for (int i = firstMirrorSection; i <= lastMirrorSection; ++i)
+	{
+		for (GameObject* obj : sectionObjects[i])
+		{
+			if ((obj->objectID == 45 || obj->objectID == 46) && obj->getPosition().x <= camPos &&
+				!obj->mirrorPortalActivated)
 			{
-				for (auto& pair : sectionObjects[curSection])
-				{
-					GameObject* obj = pair.second;
-					if ((obj->objectID == 45 || obj->objectID == 46) && obj->getPosition().x <= camPos &&
-						!obj->mirrorPortalActivated)
-					{
-						Application::instance->mirrorX = !Application::instance->mirrorX;
-						obj->mirrorPortalActivated = true;
-					}
-				}
+				Application::instance->mirrorX = !Application::instance->mirrorX;
+				obj->mirrorPortalActivated = true;
 			}
 		}
 	}

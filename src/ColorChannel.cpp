@@ -59,9 +59,9 @@ glm::vec4 ColorChannel::getNonPulseColor()
 
 void ColorChannel::setDirtyRecusively()
 {
-	auto&dirty = GameLayer::instance->dirtyChannels;
-	if (dirty.find(id) == dirty.end())
-    		dirty.insert(id);
+	auto& dirty = GameLayer::instance->dirtyChannels;
+	if (!dirty.insert(id).second)
+		return;
 
 	for (ColorChannel* ptr : copiers)
 		ptr->setDirtyRecusively();

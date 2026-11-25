@@ -36,8 +36,6 @@ public:
     int channelType = 0; //0 none 1 primary 2 secondary
     size_t atlasIndex = 0, childIndex = 0;
 
-    size_t uniqueID = 0;
-
     float opacityMultiplier = 1.0f;
 public:
 

@@ -25,8 +25,8 @@ bool GameTexture::init(const std::string& path)
 		return false;
 
 	resolution = {static_cast<float>(textureID.width), static_cast<float>(textureID.height)};
-	SetTextureWrap(textureID, TEXTURE_WRAP_REPEAT);
-	SetTextureFilter(textureID, TEXTURE_FILTER_TRILINEAR);
+	SetTextureWrap(textureID, TEXTURE_WRAP_CLAMP);
+	SetTextureFilter(textureID, TEXTURE_FILTER_BILINEAR);
 
 	return true;
 }

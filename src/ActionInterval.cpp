@@ -21,6 +21,13 @@ void ActionInterval::step(float dt)
     if (isDone())
         return;
 
+    if (duration <= 0.0f)
+    {
+        update(1.0f);
+        stop();
+        return;
+    }
+
     if (firstTick)
     {
         firstTick = false;
@@ -57,7 +64,6 @@ void ActionInterval::stepNoUpdate(float dt)
 
 void ActionInterval::update(float time)
 {
-	//std::cout << "Override me! " << time << " " << elapsed << std::endl;
 }
 
 void ActionInterval::stop()

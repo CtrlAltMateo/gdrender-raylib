@@ -57,8 +57,8 @@ void ImageLoader::ParsePlist(std::string path)
 
 					glm::vec2 anchor = {0, 0};
 
-					anchor.x = -(float)spriteOffset.x / 4.f;
-					anchor.y = -(float)spriteOffset.y / 4.f;
+					anchor.x = -static_cast<float>(spriteOffset.x) / TextureScale::UhdPixelsPerGameUnit;
+					anchor.y = -static_cast<float>(spriteOffset.y) / TextureScale::UhdPixelsPerGameUnit;
 
 					if (rotated)
 					{

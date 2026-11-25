@@ -65,9 +65,11 @@ void EffectGameObject::colorAction()
 		gameLayer->colorChannels[targetColorId]->blending = blending;
 		for (int i = gameLayer->prevSection; i < gameLayer->nextSection + 1; i++)
 		{
-			for (auto& pair : gameLayer->colorChannels[targetColorId]->channelSprites[i])
+			if (i < 0 || static_cast<size_t>(i) >=
+				gameLayer->colorChannels[targetColorId]->channelSprites.size())
+				continue;
+			for (Sprite* spr : gameLayer->colorChannels[targetColorId]->channelSprites[i])
 			{
-				Sprite* spr = pair.second;
 				spr->removeFromBatcher();
 				gameLayer->layerObject(spr);
 			}

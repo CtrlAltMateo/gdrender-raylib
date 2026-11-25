@@ -6,6 +6,11 @@
 #include <iostream>
 #include <unordered_map>
 
+namespace TextureScale
+{
+	inline constexpr float UhdPixelsPerGameUnit = 4.0f;
+}
+
 struct TextureDefinition
 {
 public:

@@ -5,9 +5,6 @@
 #include <vector>
 
 #include "HSV.h"
-#include <iostream>
-
-#include <unordered_map>
 
 class Sprite;
 
@@ -20,7 +17,7 @@ private:
 public:
 	bool blending = false;
 
-	std::unordered_map<int, std::unordered_map<int, Sprite*>> channelSprites;
+	std::vector<std::vector<Sprite*>> channelSprites;
 	std::shared_ptr <ActionInterval> colorActionChannel;
 	ColorChannel* copyColor = nullptr;
 	std::vector<ColorChannel*> copiers;
@@ -40,10 +37,4 @@ public:
 	glm::vec4 getNonPulseColor();
 
 	void setDirtyRecusively();
-
-	void print()
-	{
-		auto col = getColor();
-		std::cout << (int)col.r << " " << (int)col.g << " " << (int)col.b << " " << (int)col.a << std::endl;
-	}
 };

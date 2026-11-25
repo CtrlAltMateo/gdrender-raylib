@@ -1,24 +1,19 @@
 #pragma once
 
-#include <iostream>
+#include <algorithm>
 #include <vector>
 
 #include "Material.h"
 #include "Transformable.h"
 #include "Vertex.h"
-#include "tsl/ordered_map.h"
 #include "Sprite.h"
 
 class Batcher : public Transformable
 {
   private:
-	tsl::ordered_map<int, Sprite*> sprites;
+	std::vector<Sprite*> sprites;
 
 	bool blending = false;
-
-	bool needSend = false;
-
-	size_t minRange = std::numeric_limits<size_t>::max(), maxRange = 0;
 
   public:
 	std::shared_ptr<GameMaterial> material;

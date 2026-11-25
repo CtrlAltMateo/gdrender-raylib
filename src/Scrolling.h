@@ -21,7 +21,7 @@ class Scrolling
 
 	bool load(int backgroundID);
 	void update(float cameraMovementX, float cameraZoom);
-	void draw(const Camera2D& camera) const;
+	void draw(const Camera2D& camera, float groundScreenY, float cameraVerticalOffset) const;
 	void setBackgroundColor(Color color);
 	void setGroundColor(Color color);
 	void unload();

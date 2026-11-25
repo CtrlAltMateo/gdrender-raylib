@@ -9,14 +9,16 @@ namespace
 {
 
 constexpr float blockSize = 30.0f;
+constexpr float groundTileBlocks = 4.0f;
 constexpr float parallax = 0.1f;
+constexpr float backgroundScaleOverscan = 1.1f;
 
 float GetBackgroundScale(Texture2D texture)
 {
 	const float screenWidth = static_cast<float>(GetScreenWidth());
 	const float screenHeight = static_cast<float>(GetScreenHeight());
 	return std::max(screenWidth / static_cast<float>(texture.width),
-					screenHeight / static_cast<float>(texture.height));
+					screenHeight / static_cast<float>(texture.height)) * backgroundScaleOverscan;
 }
 
 }
@@ -37,10 +39,10 @@ bool Scrolling::load(int backgroundID)
 		return false;
 	}
 
-	ground = LoadTexture("Assets/Textures/ground.png");
+	ground = LoadTexture("Assets/Textures/Game/ground.png");
 	if (!IsTextureValid(ground))
 	{
-		TraceLog(LOG_ERROR, "Could not load Assets/Textures/ground.png");
+		TraceLog(LOG_ERROR, "Could not load Assets/Textures/Game/ground.png");
 		background.reset();
 		return false;
 	}
@@ -65,13 +67,13 @@ void Scrolling::update(float cameraMovementX, float cameraZoom)
 			backgroundOffset = 0.0f;
 	}
 
-	const float groundWidth = blockSize * cameraZoom;
+	const float groundWidth = blockSize * groundTileBlocks * cameraZoom;
 	groundOffset -= cameraMovementX * cameraZoom;
 	if (groundWidth > 0.0f && groundOffset <= -groundWidth)
 		groundOffset = 0.0f;
 }
 
-void Scrolling::draw(const Camera2D& camera) const
+void Scrolling::draw(const Camera2D& camera, float groundScreenY, float cameraVerticalOffset) const
 {
 	const float zoom = camera.zoom > 0.0f ? camera.zoom : 1.0f;
 	if (background)
@@ -79,8 +81,13 @@ void Scrolling::draw(const Camera2D& camera) const
 		const Texture2D texture = background->getTexture();
 		const float scale = GetBackgroundScale(texture);
 		const float backgroundWidth = texture.width * scale;
-		const float backgroundY =
-			(static_cast<float>(GetScreenHeight()) - texture.height * scale) * 0.5f;
+		const float backgroundHeight = texture.height * scale;
+		const float height = static_cast<float>(GetScreenHeight());
+		const float centeredY = (height - backgroundHeight) * 0.5f;
+		const float backgroundY = std::clamp(
+			centeredY + cameraVerticalOffset * parallax,
+			height - backgroundHeight,
+			0.0f);
 		if (backgroundWidth > 0.0f)
 		{
 			for (float x = backgroundOffset; x < GetScreenWidth(); x += backgroundWidth)
@@ -91,15 +98,24 @@ void Scrolling::draw(const Camera2D& camera) const
 	if (!IsTextureValid(ground))
 		return;
 
-	const float groundY = (0.0f - camera.target.y) * zoom + camera.offset.y;
-	const float tileSize = blockSize * zoom;
-	if (groundY >= GetScreenHeight() || tileSize <= 0.0f)
+	const float tileWidth = blockSize * groundTileBlocks * zoom;
+	const float tileHeight = blockSize * zoom;
+	if (groundScreenY >= GetScreenHeight() || tileWidth <= 0.0f || tileHeight <= 0.0f)
 		return;
 
-	const float scale = tileSize / static_cast<float>(ground.width);
-	for (float y = groundY; y < GetScreenHeight(); y += tileSize)
-		for (float x = groundOffset; x < GetScreenWidth(); x += tileSize)
-			DrawTextureEx(ground, {x, y}, 0.0f, scale, groundColor);
+	const Rectangle source = {
+		0.0f, 0.0f, static_cast<float>(ground.width), static_cast<float>(ground.height)
+	};
+	for (float x = groundOffset; x < GetScreenWidth(); x += tileWidth)
+	{
+		DrawTexturePro(
+			ground,
+			source,
+			{x, groundScreenY, tileWidth, tileHeight},
+			{0.0f, 0.0f},
+			0.0f,
+			groundColor);
+	}
 }
 
 void Scrolling::setBackgroundColor(Color color)

@@ -15,7 +15,6 @@
 #include "Scrolling.h"
 #include "SpawnAction.h"
 
-#include <unordered_map>
 #include <unordered_set>
 
 #include <raylib.h>
@@ -30,27 +29,16 @@ class GameLayer : public Layer
 	int bgID = 1;
 
   public:
-	std::shared_ptr<Batcher> gameSheet01_t3;
-	std::shared_ptr<Batcher> gameSheet01_t3_blending;
-	std::shared_ptr<Batcher> gameSheet01_t2;
-	std::shared_ptr<Batcher> gameSheet01_t2_blending;
-	std::shared_ptr<Batcher> gameSheet01_t1;
-	std::shared_ptr<Batcher> gameSheet01_t1_blending;
-	std::shared_ptr<Batcher> gameSheet01_b4;
-	std::shared_ptr<Batcher> gameSheet01_b4_blending;
-	std::shared_ptr<Batcher> gameSheet01_b3;
-	std::shared_ptr<Batcher> gameSheet01_b3_blending;
-	std::shared_ptr<Batcher> gameSheet01_b2;
-	std::shared_ptr<Batcher> gameSheet01_b2_blending;
-	std::shared_ptr<Batcher> gameSheet01_b1;
-	std::shared_ptr<Batcher> gameSheet01_b1_blending;
+	std::array<std::array<std::shared_ptr<Batcher>, 2>, 7> gameSheet01;
 	std::shared_ptr<Batcher> gameSheet02;
+	std::array<std::array<std::shared_ptr<Batcher>, 2>, 7> gameSheet03;
+	std::array<std::array<std::shared_ptr<Batcher>, 2>, 7> gameSheet04;
 
-	std::array<std::shared_ptr<Batcher>, 15> batchers;
+	std::vector<std::shared_ptr<Batcher>> batchers;
 	Scrolling scrolling;
 
 	std::vector<std::shared_ptr<GameObject>> objects;
-	std::vector<std::unordered_map<int, GameObject*>> sectionObjects;
+	std::vector<std::vector<GameObject*>> sectionObjects;
 	std::vector<std::shared_ptr<ColorAction>> colorActionsActive;
 	std::vector<std::shared_ptr<CopyColorAction>> copyColorActionsActive;
 	std::vector<std::shared_ptr<PulseAction>> pulseActionsActive;
@@ -65,13 +53,11 @@ class GameLayer : public Layer
 
 	std::unordered_set<int> pulsedGroups;
 
-	std::array<std::shared_ptr<ColorChannel>, 1013> colorChannels;
-	std::array<std::shared_ptr<Group>, 1013> groups;
+	std::array<std::shared_ptr<ColorChannel>, 2048> colorChannels;
+	std::array<std::shared_ptr<Group>, 2048> groups;
 
 	int prevSection = 0;
 	int nextSection = 0;
-	int maxSectionSize = 0;
-
 	glm::vec2 deltaMove = {0, 0};
 
 	static GameLayer* instance;

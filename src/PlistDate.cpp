@@ -56,7 +56,6 @@ void Date::set(int month, int day, int year, int hour24, int minute, int second,
 
 	time_t loc = time(NULL);
 	struct tm tmLoc = *localtime(&loc);
-	//std::cout<<"tmLoc.tm_isdst = "<<tmLoc.tm_isdst<<std::endl;
 	tmTime.tm_isdst = tmLoc.tm_isdst;
 
 	if(UTC)

@@ -40,19 +40,13 @@ void Batcher::draw()
 	rlEnableBackfaceCulling();
 	rlSetTexture(0);
 	EndBlendMode();
-
-	needSend = false;
-	minRange = std::numeric_limits<size_t>::max();
-	maxRange = 0;
 }
 
 void Batcher::sendVertex(Vertex& vert, size_t index)
 {
+	if (index >= vertices.size())
+		return;
 	vertices[index] = vert;
-	needSend = true;
-
-	minRange = std::min(minRange, index);
-	maxRange = std::max(maxRange, index);
 }
 
 void Batcher::updateSprite(Sprite* sp)
@@ -60,7 +54,9 @@ void Batcher::updateSprite(Sprite* sp)
 	if (sp->currentBatcher != this)
 		return;
 
-	size_t atIndex = sp->atlasIndex * 4;
+	const size_t atIndex = sp->atlasIndex * 4;
+	if (atIndex + 3 >= vertices.size())
+		return;
 	for (int i = 0; i < 4; i++)
 		vertices[atIndex + i] = sp->vertices[i];
 
@@ -85,48 +81,42 @@ bool Batcher::init(std::string texture, bool blend)
 
 void Batcher::addSprite(Sprite* sp)
 {
-	if (sp->currentBatcher != nullptr)
+	if (!sp || sp->currentBatcher != nullptr)
 		return;
 
-	sprites.insert({sp->uniqueID, sp});
-
+	sprites.push_back(sp);
 	batcherDirty = true;
-
 	sp->currentBatcher = this;
 }
 
 void Batcher::removeSprite(Sprite* sp)
 {
-	if (batcherDirty)
+	if (!sp || sp->currentBatcher != this)
 		return;
 
-	sp->setOpacity(0);
-
-	sprites.unordered_erase(sp->uniqueID);
-
+	const auto sprite = std::find(sprites.begin(), sprites.end(), sp);
+	if (sprite != sprites.end())
+		sprites.erase(sprite);
+	sp->setOpacityWithoutSend(0);
 	sp->currentBatcher = nullptr;
+	batcherDirty = true;
 }
 
 void Batcher::generateVertices()
 {
 	vertices.clear();
 	indices.clear();
-
-	auto data = sprites.values_container();
-
-	std::sort(data.begin(), data.end(), [](const auto& x, const auto& y) {
-		if (!x.second->parent || !y.second->parent)
-			return false;
-
-		return x.second->parent->zOrder < y.second->parent->zOrder;
+	std::stable_sort(sprites.begin(), sprites.end(), [](const Sprite* left, const Sprite* right) {
+		const int leftZ = left->parent ? left->parent->zOrder : 0;
+		const int rightZ = right->parent ? right->parent->zOrder : 0;
+		return leftZ < rightZ;
 	});
 
 	size_t i = 0;
 	size_t triangleIndex = 0;
 
-	for (auto& pair : data)
+	for (Sprite* sprite : sprites)
 	{
-		Sprite* sprite = pair.second;
 		sprite->atlasIndex = i;
 		vertices.push_back(sprite->vertices[0]);
 		vertices.push_back(sprite->vertices[1]);
@@ -144,11 +134,6 @@ void Batcher::generateVertices()
 		triangleIndex += 4;
 		i++;
 	}
-
-	needSend = false;
-
-	minRange = std::numeric_limits<size_t>::max();
-	maxRange = 0;
 
 	batcherDirty = false;
 }
